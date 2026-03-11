@@ -185,7 +185,8 @@ public class DebugActionData {
 	 *            0: P1; 1: P2
 	 */
 	private void readMotionData(int i) {
-		String fileName = "./data/characters/" + LaunchSetting.characterNames[i] + "/Motion.csv";
+		String customMotion = LaunchSetting.customMotion.get(LaunchSetting.characterNames[i]);
+		String fileName = !customMotion.isEmpty() ? customMotion : "./data/characters/" + LaunchSetting.characterNames[i] + "/Motion.csv";
 		try {
 			BufferedReader br = new BufferedReader(new FileReader(fileName));
 			String s;
