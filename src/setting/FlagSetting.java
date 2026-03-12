@@ -73,5 +73,7 @@ public class FlagSetting {
     public static boolean enableReplaySound = false;
     public static boolean enableAudioPlayback = false;
     public static boolean saveSoundOnReplay = false;
+
+    public static boolean useCustomGameTime = false;
     
 }

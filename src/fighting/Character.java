@@ -1381,8 +1381,9 @@ public class Character {
      */
     private void setMotionList(String characterName) {
         try {
+            String customMotion = LaunchSetting.customMotion.get(characterName);
             BufferedReader br = ResourceLoader.getInstance()
-                    .openReadFile("./data/characters/" + characterName + "/Motion.csv");
+                    .openReadFile(!customMotion.isEmpty() ? customMotion : "./data/characters/" + characterName + "/Motion.csv");
 
             String line;
             br.readLine(); // ignore header

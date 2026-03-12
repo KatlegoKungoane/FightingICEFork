@@ -49,7 +49,7 @@ public class FrameData {
      * The class constructor.
      */
     public FrameData() {
-        this.characterData = new CharacterData[]{null, null};
+        this.characterData = new CharacterData[] { null, null };
         this.currentFrameNumber = -1;
         this.currentRound = -1;
         this.projectileData = new LinkedList<AttackData>();
@@ -64,13 +64,14 @@ public class FrameData {
      * @param characterData  an instance of the CharacterData class
      * @param currentFrame   the frame number of the current frame
      * @param currentRound   the round number of the current round
-     * @param projectileData the queue that stores information on projectiles of P1 and P2
+     * @param projectileData the queue that stores information on projectiles of P1
+     *                       and P2
      * @see CharacterData
      * @see KeyData
      */
     public FrameData(CharacterData[] characterData, int currentFrame, int currentRound,
-                     Deque<AttackData> projectileData) {
-        this.characterData = new CharacterData[]{characterData[0], characterData[1]};
+            Deque<AttackData> projectileData) {
+        this.characterData = new CharacterData[] { characterData[0], characterData[1] };
         this.currentFrameNumber = currentFrame;
         this.currentRound = currentRound;
 
@@ -119,7 +120,8 @@ public class FrameData {
 
     /**
      * Create FrameData for AI
-     * it removes visual-data if the player is able to access only sound, otherwise does nothing
+     * it removes visual-data if the player is able to access only sound, otherwise
+     * does nothing
      */
 
     public void removeVisualData() {
@@ -132,12 +134,19 @@ public class FrameData {
      * Returns an instance of the CharacterData class of the player specified by
      * an argument.
      *
-     * @param playerNumber the number of the player. {@code true} if the player is P1, or
+     * @param playerNumber the number of the player. {@code true} if the player is
+     *                     P1, or
      *                     {@code false} if P2.
      * @return an instance of the CharacterData class of the player
      */
     public CharacterData getCharacter(boolean playerNumber) {
         CharacterData temp = this.characterData[playerNumber ? 0 : 1];
+
+        return temp == null ? null : new CharacterData(temp);
+    }
+
+    public CharacterData getCharacter(int playerNumber) {
+        CharacterData temp = this.characterData[playerNumber];
 
         return temp == null ? null : new CharacterData(temp);
     }
@@ -164,7 +173,7 @@ public class FrameData {
      *
      * @return the expected remaining time in seconds of the current round
      * @deprecated Use {@link #getRemainingTimeMilliseconds()} instead. This
-     * method has been renamed to more clearly reflect its purpose.
+     *             method has been renamed to more clearly reflect its purpose.
      */
     public int getRemainingTime() {
         if (FlagSetting.trainingModeFlag) {
@@ -186,7 +195,7 @@ public class FrameData {
         if (FlagSetting.trainingModeFlag) {
             return Integer.MAX_VALUE;
         } else {
-        	return (int) (((float) getRemainingFramesNumber() / GameSetting.FPS) * 1000);
+            return (int) (((float) getRemainingFramesNumber() / GameSetting.FPS) * 1000);
         }
     }
 
@@ -257,7 +266,7 @@ public class FrameData {
      * data.
      *
      * @return {@code true} if this instance is empty, or {@code false} if it
-     * contains meaningful data
+     *         contains meaningful data
      */
     public boolean getEmptyFlag() {
         return this.emptyFlag;
@@ -284,25 +293,61 @@ public class FrameData {
     public boolean isFront(boolean player) {
         return this.front[player ? 0 : 1];
     }
-    
+
     public GrpcFrameData toProto() {
-  		GrpcFrameData.Builder builder = GrpcFrameData.newBuilder();
-  		
-  		for (AttackData proj : this.getProjectiles()) {
-  			builder.addProjectileData(proj.toProto());
-  		}
-  		
-  		if (this.getCharacter(true) != null && this.getCharacter(false) != null) {	
-  			builder = builder.addCharacterData(this.getCharacter(true).toProto());
-  			builder = builder.addCharacterData(this.getCharacter(false).toProto());
-  		}
-  		
-  		return builder.setCurrentFrameNumber(this.getFramesNumber())
-  				.setCurrentRound(this.getRound())
-  				.setEmptyFlag(this.getEmptyFlag())
-  				.addFront(this.isFront(true))
-  				.addFront(this.isFront(false))
-  				.build();
+        GrpcFrameData.Builder builder = GrpcFrameData.newBuilder();
+
+        for (AttackData proj : this.getProjectiles()) {
+            builder.addProjectileData(proj.toProto());
+        }
+
+        if (this.getCharacter(true) != null && this.getCharacter(false) != null) {
+            builder = builder.addCharacterData(this.getCharacter(true).toProto());
+            builder = builder.addCharacterData(this.getCharacter(false).toProto());
+        }
+
+        return builder.setCurrentFrameNumber(this.getFramesNumber())
+                .setCurrentRound(this.getRound())
+                .setEmptyFlag(this.getEmptyFlag())
+                .addFront(this.isFront(true))
+                .addFront(this.isFront(false))
+                .build();
     }
-    
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("--- FrameData [Round: %d | Frame: %d] ---%n", currentRound, currentFrameNumber));
+
+        if (emptyFlag) {
+            sb.append("Status: EMPTY/DUMMY DATA%n");
+        } else {
+            // P1 Summary
+            CharacterData p1 = characterData[0];
+            if (p1 != null) {
+                sb.append(String.format("P1: HP:%d, Energy:%d, Pos:(%d,%d), Action:%s, Side:%s%n",
+                        p1.getHp(), p1.getEnergy(), p1.getCenterX(), p1.getCenterY(),
+                        p1.getAction(), front[0] ? "Right" : "Left"));
+            }
+
+            // P2 Summary
+            CharacterData p2 = characterData[1];
+            if (p2 != null) {
+                sb.append(String.format("P2: HP:%d, Energy:%d, Pos:(%d,%d), Action:%s, Side:%s%n",
+                        p2.getHp(), p2.getEnergy(), p2.getCenterX(), p2.getCenterY(),
+                        p2.getAction(), front[1] ? "Right" : "Left"));
+            }
+
+            // Environment Details
+            sb.append(String.format("Distance: X:%d, Y:%d%n", getDistanceX(), getDistanceY()));
+
+            // Projectile Summary
+            if (projectileData != null && !projectileData.isEmpty()) {
+                sb.append(String.format("Projectiles: %d active%n", projectileData.size()));
+            }
+        }
+
+        return sb.toString();
+    }
 }
+

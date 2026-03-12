@@ -48,7 +48,7 @@ public class Game extends GameManager {
                 case "-a":
                 case "--all":
                     FlagSetting.allCombinationFlag = true;
-                    LaunchSetting.deviceTypes = new char[]{1, 1};
+                    LaunchSetting.deviceTypes = new char[] { 1, 1 };
                     break;
                 case "-n":
                 case "--number":
@@ -69,6 +69,7 @@ public class Game extends GameManager {
                 case "--c2":
                     LaunchSetting.characterNames[1] = getCharacterName(options[++i]);
                     break;
+                // Useless, we should edit it ourselves
                 case "-da":
                     FlagSetting.debugActionFlag = true;
                     break;
@@ -128,57 +129,75 @@ public class Game extends GameManager {
                     FlagSetting.outputErrorAndLogFlag = true;
                     break;
                 case "--blind-player":
-	                int blindPlayer = Integer.parseInt(options[++i]);
-	                if (blindPlayer == 2) {
-	                	LaunchSetting.noVisual[0] = LaunchSetting.noVisual[1] = true;
-	                } else {
-	                    LaunchSetting.noVisual[blindPlayer] = true;
-	                }
+                    int blindPlayer = Integer.parseInt(options[++i]);
+                    if (blindPlayer == 2) {
+                        LaunchSetting.noVisual[0] = LaunchSetting.noVisual[1] = true;
+                    } else {
+                        LaunchSetting.noVisual[blindPlayer] = true;
+                    }
                     break;
                 case "--sound":
                     LaunchSetting.soundName = options[++i];
-                	break;
+                    break;
                 case "--non-delay":
-                	int player = Integer.parseInt(options[++i]);
-                	if (player == 2) {
-                		LaunchSetting.nonDelay[0] = LaunchSetting.nonDelay[1] = true;
-                	} else {
-                		LaunchSetting.nonDelay[player] = true;
-                	}
-                	break;
+                    int player = Integer.parseInt(options[++i]);
+                    if (player == 2) {
+                        LaunchSetting.nonDelay[0] = LaunchSetting.nonDelay[1] = true;
+                    } else {
+                        LaunchSetting.nonDelay[player] = true;
+                    }
+                    break;
                 case "--port":
-                	int port = Integer.parseInt(options[++i]);
+                    int port = Integer.parseInt(options[++i]);
                     LaunchSetting.serverPort = port;
                     break;
                 case "--pyftg-mode":
-                	FlagSetting.enablePyftgMode = true;
-                	break;
+                    FlagSetting.enablePyftgMode = true;
+                    break;
                 case "--no-vision":
-                	FlagSetting.visualVisibleOnRender = false;
-                	break;
+                    FlagSetting.visualVisibleOnRender = false;
+                    break;
                 case "--enable-builtin-sound":
-                	FlagSetting.enableBuiltinSound = true;
-                	FlagSetting.enableReplaySound = false;
-                	FlagSetting.enableAudioPlayback = false;
-                	break;
+                    FlagSetting.enableBuiltinSound = true;
+                    FlagSetting.enableReplaySound = false;
+                    FlagSetting.enableAudioPlayback = false;
+                    break;
                 case "--enable-replay-sound":
-                	FlagSetting.enableBuiltinSound = false;
-                	FlagSetting.enableReplaySound = true;
-                	FlagSetting.enableAudioPlayback = false;
-                	break;
+                    FlagSetting.enableBuiltinSound = false;
+                    FlagSetting.enableReplaySound = true;
+                    FlagSetting.enableAudioPlayback = false;
+                    break;
                 case "--enable-audio-playback":
-                	FlagSetting.enableBuiltinSound = false;
-                	FlagSetting.enableReplaySound = false;
-                	FlagSetting.enableAudioPlayback = true;
-                	break;
+                    FlagSetting.enableBuiltinSound = false;
+                    FlagSetting.enableReplaySound = false;
+                    FlagSetting.enableAudioPlayback = true;
+                    break;
                 case "--save-sound-on-replay":
-                	FlagSetting.saveSoundOnReplay = true;
-                	break;
+                    FlagSetting.saveSoundOnReplay = true;
+                    break;
+                // Expecting --config-path character path
+                // Preferably, path should be absolute
+                case "--config-path":
+                    int quantity = Integer.parseInt(options[++i]);
+                    for (int j = 0; j < quantity; j++) {
+                        String character = options[++i].toUpperCase();
+                        String path = options[++i];
+
+                        if (LaunchSetting.customMotion.containsKey(character)) {
+                            LaunchSetting.customMotion.put(character, path);
+                            System.out.println("Updated motion path for " + character + " to: " + path);
+                        } else {
+                            System.err.println("Unknown character: " + character);
+                        }
+                    }
+                    break;
+                case "--time-stamp":
+                    FlagSetting.useCustomGameTime = true;
+                    LaunchSetting.gameTime = options[++i];
                 default:
                     Logger.getAnonymousLogger().log(Level.WARNING, "Arguments error: unknown format is exist. -> " + options[i] + " ?");
             }
         }
-
     }
 
     @Override
@@ -192,16 +211,17 @@ public class Game extends GameManager {
         createLogDirectories();
 
         try {
-			SocketServer.getInstance().startServer(LaunchSetting.serverPort);
-	    	Logger.getAnonymousLogger().log(Level.INFO, "Socket server is started, listening on " + LaunchSetting.serverPort);
-		} catch (IOException e) {
-			e.printStackTrace();
+            SocketServer.getInstance().startServer(LaunchSetting.serverPort);
+            Logger.getAnonymousLogger().log(Level.INFO,
+                    "Socket server is started, listening on " + LaunchSetting.serverPort);
+        } catch (IOException e) {
+            e.printStackTrace();
             Logger.getAnonymousLogger().log(Level.INFO, "Fail to start gRPC server");
-		}
-        
+        }
+
         if (FlagSetting.enablePyftgMode) {
-        	Socket grpc = new Socket();
-        	this.startGame(grpc);
+            Socket grpc = new Socket();
+            this.startGame(grpc);
         } else if ((FlagSetting.automationFlag || FlagSetting.allCombinationFlag)) {
             // -nまたは-aが指定されたときは, メニュー画面に行かず直接ゲームをLaunchする
             if (FlagSetting.allCombinationFlag) {
@@ -214,7 +234,7 @@ public class Game extends GameManager {
             }
             
             if (!LaunchSetting.soundName.equals("Default")) {
-				ResourceSetting.SOUND_DIRECTORY = String.format("./data/sounds/%s/", LaunchSetting.soundName);
+                ResourceSetting.SOUND_DIRECTORY = String.format("./data/sounds/%s/", LaunchSetting.soundName);
             }
 
             Launcher launcher = new Launcher(GameSceneName.PLAY);
@@ -240,7 +260,8 @@ public class Game extends GameManager {
                 return character;
             }
         }
-        Logger.getAnonymousLogger().log(Level.WARNING, characterName + " is does not exist. Please check the set character name.");
+        Logger.getAnonymousLogger().log(Level.WARNING,
+                characterName + " is does not exist. Please check the set character name.");
         return "ZEN"; // Default character
     }
 

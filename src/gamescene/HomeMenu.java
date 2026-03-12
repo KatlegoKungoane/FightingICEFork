@@ -1,5 +1,9 @@
 package gamescene;
 
+import java.io.DataInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 
 import enumerate.GameSceneName;
@@ -90,54 +94,71 @@ public class HomeMenu extends GameScene {
 		}
 
 		switch (this.cursorPosition) {
-		// FIGHTの位置のとき
-		case 0:
-			if (key.A) {
-				FightingMenu fightingMenu = new FightingMenu();
-				this.setTransitionFlag(true);
-				this.setNextGameScene(fightingMenu);
-			}
-			break;
-
-		// REPLAYの位置のとき
-		case 1:
-			if (key.R) {
-				if (this.replayIndex == this.allReplayNames.size() - 1) {
-					this.replayIndex = 0;
-				} else {
-					this.replayIndex++;
+			// FIGHTの位置のとき
+			case 0:
+				if (key.A) {
+					FightingMenu fightingMenu = new FightingMenu();
+					this.setTransitionFlag(true);
+					this.setNextGameScene(fightingMenu);
 				}
-			}
+				break;
 
-			if (key.L) {
-				if (this.replayIndex == 0) {
-					this.replayIndex = this.allReplayNames.size() - 1;
-				} else {
-					this.replayIndex--;
+			// REPLAYの位置のとき
+			case 1:
+				if (key.R) {
+					if (this.replayIndex == this.allReplayNames.size() - 1) {
+						this.replayIndex = 0;
+					} else {
+						this.replayIndex++;
+					}
 				}
-			}
 
-			if (key.A) {
-				LaunchSetting.replayName = this.allReplayNames.get(this.replayIndex);
-				
-				if (!LaunchSetting.replayName.equals("None")) {
-					// Launcherの次の遷移先を登録
-					Launcher launcher = new Launcher(GameSceneName.REPLAY);
-					this.setTransitionFlag(true); // 現在のシーンからの遷移要求をtrueに
-					this.setNextGameScene(launcher); // 次のシーンをセットする
+				if (key.L) {
+					if (this.replayIndex == 0) {
+						this.replayIndex = this.allReplayNames.size() - 1;
+					} else {
+						this.replayIndex--;
+					}
 				}
-			}
-			break;
 
-		// EXITの位置のとき
-		case 2:
-			if (key.A) {
-				this.setGameEndFlag(true);
-			}
-			break;
+				if (key.A) {
+					LaunchSetting.replayName = this.allReplayNames.get(this.replayIndex);
 
-		default:
-			break;
+					if (!LaunchSetting.replayName.equals("None")) {
+						// Launcherの次の遷移先を登録
+						try {
+							String replayPath = "./log/replay/" + LaunchSetting.replayName + ".dat";
+							DataInputStream dis = new DataInputStream(new FileInputStream(new File(replayPath)));
+
+							for (int i = 0; i < 2; i++) {
+								int checkMode = dis.readInt();
+								if (checkMode < 0) {
+									LaunchSetting.maxHp[i] = dis.readInt();
+									LaunchSetting.characterNames[i] = setting.GameSetting.CHARACTERS[dis.readInt()];
+								} else {
+									LaunchSetting.characterNames[i] = setting.GameSetting.CHARACTERS[checkMode];
+								}
+							}
+							dis.close();
+						} catch (IOException e) {
+							e.printStackTrace();
+						}
+						Launcher launcher = new Launcher(GameSceneName.REPLAY);
+						this.setTransitionFlag(true); // 現在のシーンからの遷移要求をtrueに
+						this.setNextGameScene(launcher); // 次のシーンをセットする
+					}
+				}
+				break;
+
+			// EXITの位置のとき
+			case 2:
+				if (key.A) {
+					this.setGameEndFlag(true);
+				}
+				break;
+
+			default:
+				break;
 		}
 
 		this.drawScreen();

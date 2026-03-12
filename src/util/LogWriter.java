@@ -18,6 +18,7 @@ import fighting.Character;
 import informationcontainer.RoundResult;
 import input.KeyData;
 import loader.ResourceLoader;
+import service.GameService;
 import setting.FlagSetting;
 import setting.GameSetting;
 import setting.LaunchSetting;
@@ -192,8 +193,10 @@ public class LogWriter {
 	 */
 	public String createOutputFileName(String path, String timeInfo) {
 		String mode = FlagSetting.limitHpFlag ? "HPMode" : "TimeMode";
-
-		return path + mode + "_" + LaunchSetting.aiNames[0] + "_" + LaunchSetting.aiNames[1] + "_" + timeInfo;
+		String gameName = GameService.getInstance().getGameName();
+		return gameName != null
+			? path + gameName + "-round-" + LaunchSetting.repeatedCount + "-" + timeInfo
+			: path + mode + "_" + LaunchSetting.aiNames[0] + "_" + LaunchSetting.aiNames[1] + "_" + LaunchSetting.serverPort + "_" + timeInfo;
 	}
 
 	/**

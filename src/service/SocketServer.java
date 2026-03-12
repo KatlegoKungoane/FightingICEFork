@@ -88,7 +88,18 @@ public class SocketServer {
 			statusCode = GrpcStatusCode.FAILED;
 			responseMessage = "The game is not ready for running the game.";
 		} else {
-			String characterName1 = request.getCharacter1();
+			String char1Request = request.getCharacter1();
+			String characterName1;
+
+			if (char1Request.contains("<name>")) {
+				String[] nameGameNamePayload = request.getCharacter1().split("<name>");
+				characterName1 = nameGameNamePayload[1];	
+				GameService.getInstance().setGameName(nameGameNamePayload[0]);
+			}
+			else {
+				characterName1 = char1Request;
+			}
+			
 			String characterName2 = request.getCharacter2();
 			String aiName1 = request.getPlayer1();
 			String aiName2 = request.getPlayer2();
@@ -128,7 +139,7 @@ public class SocketServer {
 	public void startServer(int serverPort) throws IOException {
 		this.serverPort = serverPort;
 		server = new ServerSocket();
-		server.bind(new InetSocketAddress(this.serverHost, serverPort));;
+		server.bind(new InetSocketAddress(this.serverHost, serverPort));
 		
 		serverThread = new Thread(() -> {
 			while (!Thread.currentThread().isInterrupted()) {

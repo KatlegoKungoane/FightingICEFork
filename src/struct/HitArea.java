@@ -11,22 +11,22 @@ public class HitArea {
 	/**
 	 * The most left x coordinate of the hit box.
 	 */
-	private int left;
+	public int left;
 
 	/**
 	 * The most right x coordinate of the hit box.
 	 */
-	private int right;
+	public int right;
 
 	/**
 	 * The most top y coordinate of the hit box.
 	 */
-	private int top;
+	public int top;
 
 	/**
 	 * The most bottom y coordinate of the hit box.
 	 */
-	private int bottom;
+	public int bottom;
 
 	/**
 	 * The class constructor.
@@ -57,6 +57,14 @@ public class HitArea {
 			this.top = 0;
 			this.bottom = 0;
 		}
+	}
+
+	// Up, Down, Left, Right
+	public HitArea(int[] box) {
+		this.top = box[0];
+		this.bottom = box[1];
+		this.left = box[2];
+		this.right = box[3];
 	}
 
 	/**

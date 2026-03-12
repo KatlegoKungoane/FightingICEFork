@@ -815,4 +815,8 @@ public class CharacterData {
 		return builder.build();
   	}
 
+	public int[] getHitArea() {
+		return new int[] {this.top, this.bottom, this.left, this.right};
+	}
+
 }

@@ -318,7 +318,8 @@ public class ResourceLoader {
 		for (int i = 0; i < 2; i++) {
 			if (!isLoaded(LaunchSetting.characterNames[i] + "_Graphic") ) {
 				try {
-					BufferedReader br = openReadFile(path + LaunchSetting.characterNames[i] + "/Motion.csv");
+					String customMotion = LaunchSetting.customMotion.get(LaunchSetting.characterNames[i]);
+					BufferedReader br = openReadFile(!customMotion.isEmpty() ? customMotion : path + LaunchSetting.characterNames[i] + "/Motion.csv");
 
 					String line;
 					br.readLine(); // ignore header

@@ -2,6 +2,11 @@ package gamescene;
 
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 
 import enumerate.GameSceneName;
@@ -72,9 +77,10 @@ public class Result extends GameScene {
 	@Override
 	public void initialize() {
 		InputManager.getInstance().setSceneName(GameSceneName.RESULT);
+		String logTimeInfo = FlagSetting.useCustomGameTime ? LaunchSetting.gameTime : this.timeInfo; 
 
 		// pointファイルの書き出し
-		LogWriter.getInstance().outputResult(this.roundResults, LogWriter.CSV, this.timeInfo);
+		LogWriter.getInstance().outputResult(this.roundResults, LogWriter.CSV, logTimeInfo);
 	}
 
 	@Override
@@ -149,6 +155,41 @@ public class Result extends GameScene {
 		// -aや-nを引数にして起動 or Repeat Countを2以上にして起動した場合の処理
 		if (FlagSetting.automationFlag || FlagSetting.allCombinationFlag || FlagSetting.enablePyftgMode) {
 			if (++this.displayedTime > 300) {
+				if (LaunchSetting.repeatedCount == LaunchSetting.repeatNumber - 1) {
+					// Writing motion to logs
+					try {
+						Files.createDirectories(Paths.get("log", "motions"));
+					} catch (IOException e) {
+						System.err.println("Failed to create directory: " + e.getMessage());
+					}
+
+					String logTimeInfo = FlagSetting.useCustomGameTime ? LaunchSetting.gameTime : this.timeInfo; 
+					Path targetPath = Paths
+							.get(LogWriter.getInstance().createOutputFileName("./log/motions/", logTimeInfo) + ".txt");
+
+					for (String characterRaw : LaunchSetting.characterNames) {
+						String character = characterRaw.toUpperCase();
+						String customMotion = LaunchSetting.customMotion.get(character);
+						String fromFileStr = (customMotion != null && !customMotion.isEmpty())
+								? customMotion
+								: "./data/characters/" + character + "/Motion.csv";
+
+						Path sourcePath = Paths.get(fromFileStr);
+
+						try {
+							if (Files.exists(sourcePath)) {
+								byte[] data = Files.readAllBytes(sourcePath);
+
+								Files.write(targetPath, character.getBytes(), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+								Files.write(targetPath, "\n".getBytes(), StandardOpenOption.APPEND);
+								Files.write(targetPath, data, StandardOpenOption.APPEND);
+								Files.write(targetPath, "\n".getBytes(), StandardOpenOption.APPEND);
+							}
+						} catch (Exception e) {
+							System.err.println("Error merging " + characterRaw + ": " + e.getMessage());
+						}
+					}
+				}
 				// まだ繰り返し回数が残っている場合
 				if (FlagSetting.automationFlag && LaunchSetting.repeatedCount + 1 < LaunchSetting.repeatNumber) {
 					LaunchSetting.repeatedCount++;

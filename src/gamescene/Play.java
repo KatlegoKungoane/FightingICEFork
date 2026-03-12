@@ -4,13 +4,23 @@ import static org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_SPACE;
 
 import java.io.DataOutputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Locale;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 import aiinterface.ThreadController;
 import enumerate.GameSceneName;
@@ -30,10 +40,13 @@ import struct.AudioSource;
 import struct.FrameData;
 import struct.GameData;
 import struct.ScreenData;
+import struct.SingleFrameData;
 import util.DebugActionData;
 import util.LogWriter;
 import util.ResourceDrawer;
 import util.WaveFileWriter;
+
+import java.io.BufferedWriter;
 
 /**
  * 対戦中のシーンを扱うクラス．
@@ -90,21 +103,24 @@ public class Play extends GameScene {
 	 * Replayファイルに出力するための出力ストリーム．
 	 */
 	private DataOutputStream dos;
+	private String replayName;
 
 	/**
 	 * 現在の年月日, 時刻を表す文字列．
 	 */
-	private String timeInfo;
+	public String timeInfo;
 
 	private int endFrame;
-	
+
 	private long roundStartTime;
 	private long currentFrameTime;
 
 	private AudioData audioData;
-	
+
 	private AudioSource audioSource;
-	
+
+	private SingleFrameData[] frameBuffer;
+
 	/**
 	 * クラスコンストラクタ．
 	 */
@@ -137,10 +153,15 @@ public class Play extends GameScene {
 		this.audioData = new AudioData();
 		this.keyData = new KeyData();
 		this.roundResults = new ArrayList<RoundResult>();
-		
+		this.frameBuffer = new SingleFrameData[FlagSetting.debugFrameDataFlag ? GameSetting.ROUND_FRAME_NUMBER : 0];
+
 		this.audioSource = SoundManager.getInstance().createAudioSource();
 
 		this.timeInfo = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy.MM.dd-HH.mm.ss", Locale.ENGLISH));
+		String logTimeInfo = FlagSetting.useCustomGameTime ? LaunchSetting.gameTime : this.timeInfo;
+		if (!FlagSetting.useCustomGameTime) {
+			LaunchSetting.gameTime = this.timeInfo;
+		}
 
 		if (!FlagSetting.trainingModeFlag) {
 			openReplayFile();
@@ -151,12 +172,12 @@ public class Play extends GameScene {
 		}
 
 		if (FlagSetting.jsonFlag) {
-			String jsonName = LogWriter.getInstance().createOutputFileName("./log/replay/", this.timeInfo);
+			String jsonName = LogWriter.getInstance().createOutputFileName("./log/replay/", logTimeInfo);
 			LogWriter.getInstance().initJson(jsonName + ".json");
 		}
 
 		GameData gameData = new GameData(this.fighting.getCharacters());
-		
+
 		InputManager.getInstance().initialize();
 
 		ThreadController.getInstance().createAIController();
@@ -226,8 +247,9 @@ public class Play extends GameScene {
 		this.keyData = new KeyData();
 
 		ThreadController.getInstance().clear();
-		
-		String fileName = LogWriter.getInstance().createOutputFileName("./log/sound/", this.timeInfo + "_" + this.currentRound + ".wav");
+
+		String fileName = LogWriter.getInstance().createOutputFileName("./log/sound/",
+				this.timeInfo + "_" + this.currentRound + ".wav");
 		WaveFileWriter.getInstance().initializeWaveFile(fileName);
 	}
 
@@ -240,7 +262,7 @@ public class Play extends GameScene {
 		GraphicManager.getInstance().resetScreen();
 		GraphicManager.getInstance().drawString("Waiting for Round Start", 350, 200);
 	}
-	
+
 	/**
 	 * 対戦処理を行う.<br>
 	 *
@@ -255,22 +277,23 @@ public class Play extends GameScene {
 	 */
 	private void processingGame() {
 		this.currentFrameTime = System.nanoTime();
-		
+
 		if (this.nowFrame == 0) {
 			this.audioData = new AudioData();
-			
-			SoundManager.getInstance().play2(audioSource, 
-					SoundManager.getInstance().getBackGroundMusicBuffer(), GameSetting.STAGE_WIDTH / 2, GameSetting.STAGE_HEIGHT / 2, true);
+
+			SoundManager.getInstance().play2(audioSource,
+					SoundManager.getInstance().getBackGroundMusicBuffer(), GameSetting.STAGE_WIDTH / 2,
+					GameSetting.STAGE_HEIGHT / 2, true);
 		} else if (FlagSetting.enableBuiltinSound) {
 			this.audioData = new AudioData(SoundManager.getInstance().getVirtualRenderer().sampleAudio());
 		} else {
 			this.audioData = InputManager.getInstance().getAudioData();
 		}
-		
+
 		if (LaunchSetting.isExpectedProcessingMode(LaunchSetting.HEADLESS_MODE)) {
 			this.screenData = new ScreenData(GraphicManager.getInstance().getScreenImage());
 		}
-		
+
 		if (this.endFrame != -1) {
 			this.keyData = new KeyData();
 			if (this.endFrame % 30 == 0) {
@@ -282,18 +305,22 @@ public class Play extends GameScene {
 		}
 
 		this.frameData = this.fighting.createFrameData(this.nowFrame, this.currentRound);
-		
+		if (FlagSetting.debugFrameDataFlag && !this.frameData.getEmptyFlag()) {
+			this.frameBuffer[this.frameData.getFramesNumber()] = new SingleFrameData(this.frameData);
+		}
+
 		// AIにFrameDataをセット
 		ThreadController.getInstance().setFrameData(this.frameData, this.screenData, this.audioData);
-		
+
 		SoundManager.getInstance().playback(this.audioSource, this.audioData.getRawShortDataAsBytes());
 		WaveFileWriter.getInstance().addSample(this.audioData.getRawShortDataAsBytes());
-		
+
 		GraphicManager.getInstance().resetScreen();
 		if (LaunchSetting.isExpectedProcessingMode(LaunchSetting.HEADLESS_MODE)) {
 			// 画面をDrawerクラスで描画
 			ResourceDrawer.getInstance().drawResource(this.fighting.getCharacters(), this.fighting.getProjectileDeque(),
-					this.fighting.getHitEffectList(), this.frameData.getRemainingTimeMilliseconds(), this.currentRound, FlagSetting.visualVisibleOnRender);
+					this.fighting.getHitEffectList(), this.frameData.getRemainingTimeMilliseconds(), this.currentRound,
+					FlagSetting.visualVisibleOnRender);
 		}
 
 		// リプレイログ吐き出し
@@ -309,7 +336,7 @@ public class Play extends GameScene {
 		if (FlagSetting.debugActionFlag) {
 			DebugActionData.getInstance().countPlayerAction(this.fighting.getCharacters());
 		}
-		
+
 		// 体力が0orタイムオーバーならラウンド終了処理
 		if (isBeaten() || isTimeOver()) {
 			this.roundEndFlag = true;
@@ -320,12 +347,16 @@ public class Play extends GameScene {
 	 * ラウンド終了時の処理を行う.
 	 */
 	private void processingRoundEnd() {
-		Logger.getAnonymousLogger().log(Level.INFO, String.format("Round Duration: %.3f seconds (Expected %.3f)", 
+		Logger.getAnonymousLogger().log(Level.INFO, String.format("Round Duration: %.3f seconds (Expected %.3f)",
 				(double) (currentFrameTime - roundStartTime) / 1e9, (double) this.nowFrame / 60));
-		
+
 		SoundManager.getInstance().stopAll();
 		SoundManager.getInstance().stopPlayback(this.audioSource);
 		WaveFileWriter.getInstance().writeToFile();
+
+		if (FlagSetting.debugFrameDataFlag) {
+			this.writeFrameBuffer();
+		}
 
 		if (FlagSetting.slowmotion) {
 			if (this.endFrame > GameSetting.ROUND_EXTRAFRAME_NUMBER) {
@@ -335,7 +366,7 @@ public class Play extends GameScene {
 
 				// AIに結果を渡す
 				ThreadController.getInstance().sendRoundResult(roundResult);
-				
+
 				this.currentRound++;
 				this.roundStartFlag = true;
 				this.roundEndFlag = false;
@@ -357,7 +388,7 @@ public class Play extends GameScene {
 
 			// AIに結果を渡す
 			ThreadController.getInstance().sendRoundResult(roundResult);
-			
+
 			this.currentRound++;
 			this.roundStartFlag = true;
 			this.roundEndFlag = false;
@@ -369,7 +400,7 @@ public class Play extends GameScene {
 			}
 		}
 	}
-	
+
 	private void processingGameEnd() {
 		ThreadController.getInstance().gameEnd();
 	}
@@ -402,8 +433,9 @@ public class Play extends GameScene {
 	 * リプレイファイルを作成し, 使用キャラクターを表すインデックスなどのヘッダ情報を記述する.
 	 */
 	private void openReplayFile() {
-		String fileName = LogWriter.getInstance().createOutputFileName("./log/replay/", this.timeInfo);
-		this.dos = ResourceLoader.getInstance().openDataOutputStream(fileName + ".dat");
+		String logTimeInfo = FlagSetting.useCustomGameTime ? LaunchSetting.gameTime : this.timeInfo;
+		this.replayName = LogWriter.getInstance().createOutputFileName("./log/replay/", logTimeInfo);
+		this.dos = ResourceLoader.getInstance().openDataOutputStream(this.replayName + ".dat");
 
 		LogWriter.getInstance().writeHeader(this.dos);
 	}
@@ -416,7 +448,7 @@ public class Play extends GameScene {
 		this.screenData = null;
 		this.keyData = null;
 		this.roundResults.clear();
-		
+
 		InputManager.getInstance().close();
 		ThreadController.getInstance().close();
 
@@ -427,6 +459,39 @@ public class Play extends GameScene {
 		try {
 			if (this.dos != null) {
 				this.dos.close();
+
+				// This is where I am going to add that logic to save the replay with a motion
+				String replayFileName = Path.of(this.replayName).getFileName().toString();
+				Gson gson = new GsonBuilder().setPrettyPrinting().create();
+				JsonObject replayMappingsJSON;
+
+				String mappingFileName = Path.of("log", "replay", "mapper.json").toString();
+				try (FileReader reader = new FileReader(mappingFileName)) {
+					replayMappingsJSON = JsonParser.parseReader(reader).getAsJsonObject();
+				} catch (Exception e) {
+					replayMappingsJSON = new JsonObject();
+				}
+
+				if (replayMappingsJSON.has(replayFileName)) {
+					System.out.println("Replay mapping already had entry: " + replayFileName + " -> " + replayMappingsJSON.get(replayFileName));
+					System.out.println("Overwriting");
+				}
+
+				JsonObject replayPaths = new JsonObject();
+				for (String characterName : LaunchSetting.characterNames) {
+					String customMotionPath = LaunchSetting.customMotion.get(characterName);
+					if (!customMotionPath.isEmpty()) {
+						replayPaths.addProperty(characterName, customMotionPath);
+					}
+				}
+
+				replayMappingsJSON.add(replayFileName, replayPaths);
+
+				try (FileWriter writer = new FileWriter(mappingFileName)) {
+					gson.toJson(replayMappingsJSON, writer);
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -435,6 +500,35 @@ public class Play extends GameScene {
 		if (FlagSetting.jsonFlag) {
 			LogWriter.getInstance().finalizeJson();
 		}
+	}
+
+	private void writeFrameBuffer() {
+		try {
+			Files.createDirectories(Paths.get("log", "frameData"));
+		} catch (IOException e) {
+			System.err.println("Failed to create directory: " + e.getMessage());
+		}
+
+		String logTimeInfo = FlagSetting.useCustomGameTime ? LaunchSetting.gameTime : this.timeInfo;
+		Path targetPath = Paths
+				.get(LogWriter.getInstance().createOutputFileName("./log/frameData/", logTimeInfo)
+						+ ".json");
+
+		Gson gson = new GsonBuilder()
+				.setPrettyPrinting()
+				.disableHtmlEscaping()
+				.create();
+
+		try (BufferedWriter writer = new BufferedWriter(new FileWriter(targetPath.toFile()))) {
+
+			gson.toJson(this.frameBuffer, writer);
+
+			System.out.println("Research data saved to: " + targetPath.toString());
+		} catch (IOException e) {
+			System.err.println("CRITICAL: Failed to save research data! " + e.getMessage());
+			e.printStackTrace();
+		}
+
 	}
 
 }

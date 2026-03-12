@@ -2,6 +2,9 @@ package setting;
 
 import enumerate.BackgroundType;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * キャラクターの最大HPや試合の繰り返し回数など、試合を行う際に必要な設定を扱うクラス．
  */
@@ -80,4 +83,11 @@ public final class LaunchSetting {
 		return processingMode >= expectedProcessingMode;
 	}
 	
+	public static Map<String, String> customMotion = new HashMap<String, String>() {{
+        put("GARNET", "");
+        put("ZEN", "");
+        put("LUD", "");
+    }};
+
+	public static String gameTime;
 }

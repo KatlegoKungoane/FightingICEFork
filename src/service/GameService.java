@@ -11,6 +11,8 @@ public class GameService {
 	
 	private boolean runFlag;
 	private boolean closeFlag;
+
+	private String gameName;
 	
 	private List<String> allAiNames;
 	
@@ -25,6 +27,7 @@ public class GameService {
 	public GameService() {
 		this.runFlag = false;
 		this.closeFlag = false;
+		this.gameName = null;
 		
 		this.allAiNames = ResourceLoader.getInstance().loadFileNames("./data/ai", ".jar");
 	}
@@ -77,5 +80,12 @@ public class GameService {
 	public boolean getCloseFlag() {
 		return this.closeFlag;
 	}
+
+	public String getGameName() {
+		return this.gameName;
+	}
 	
+	public void setGameName(String gameName) {
+		this.gameName = gameName;
+	}
 }

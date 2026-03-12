@@ -6,9 +6,15 @@ import java.io.DataInputStream;
 import java.io.EOFException;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileReader;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 import aiinterface.ThreadController;
 import enumerate.GameSceneName;
@@ -52,7 +58,7 @@ public class Replay extends GameScene {
 	private int nowFrame;
 
 	private AudioSource audioSource;
-	
+
 	private AudioBuffer audioBuffer;
 
 	/**
@@ -69,7 +75,7 @@ public class Replay extends GameScene {
 	 * 各ラウンドの開始時かどうかを表すフラグ．
 	 */
 	private boolean roundStartFlag;
-	
+
 	private long roundStartTime;
 	private long currentFrameTime;
 
@@ -82,7 +88,7 @@ public class Replay extends GameScene {
 	 * 対戦処理後のゲーム画面の情報．
 	 */
 	private ScreenData screenData;
-	
+
 	private AudioData audioData;
 
 	/**
@@ -122,6 +128,37 @@ public class Replay extends GameScene {
 	public void initialize() {
 		InputManager.getInstance().setSceneName(GameSceneName.REPLAY);
 
+		JsonObject replayMappingsJSON;
+
+		String mappingFileName = Path.of("log", "replay", "mapper.json").toString();
+		try (FileReader reader = new FileReader(mappingFileName)) {
+			replayMappingsJSON = JsonParser.parseReader(reader).getAsJsonObject();
+		} catch (Exception e) {
+			System.out.println("Missing mapping file, will use defaults for replay");
+			replayMappingsJSON = new JsonObject();
+		}
+
+		System.out.println("Given characters " + String.join(",", LaunchSetting.characterNames));
+
+		if (replayMappingsJSON.has(LaunchSetting.replayName)) {
+			for (int i = 0; i < LaunchSetting.characterNames.length; i++) {
+				String characterName = LaunchSetting.characterNames[i];
+				if (replayMappingsJSON.getAsJsonObject(LaunchSetting.replayName).has(characterName)) {
+					String customConfigPath = replayMappingsJSON.getAsJsonObject(LaunchSetting.replayName)
+							.get(characterName).getAsString();
+
+					if (!Files.exists(Path.of(customConfigPath))) {
+						System.out.println("Mapping exists for " + characterName
+								+ " but the file doesn't exist for " + customConfigPath);
+					} else {
+						System.out.println("Custom mapping for " + characterName + " successfully loaded");
+						LaunchSetting.customMotion.put(characterName, customConfigPath);
+					}
+
+				}
+			}
+		}
+
 		this.fighting = new Fighting();
 		this.fighting.initialize();
 
@@ -139,19 +176,19 @@ public class Replay extends GameScene {
 		this.playSpeedIndex = 1;
 		this.playSpeedArray = new int[] { 0, 1, 2, 4 };
 		this.isFinished = false;
-		
+
 		this.audioSource = SoundManager.getInstance().createAudioSource();
 		this.audioBuffer = SoundManager.getInstance().createAudioBuffer();
 
 		GameData gameData = new GameData(this.fighting.getCharacters());
-		
+
 		ThreadController.getInstance().createSoundController();
 		ThreadController.getInstance().startAllThreads(gameData);
-		
+
 		try {
 			String replayPath = "./log/replay/" + LaunchSetting.replayName + ".dat";
 			this.dis = new DataInputStream(new FileInputStream(new File(replayPath)));
-			
+
 			readHeader();
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -161,7 +198,7 @@ public class Replay extends GameScene {
 	@Override
 	public void update() {
 		GraphicManager.getInstance().resetScreen();
-		
+
 		if (this.currentRound <= GameSetting.ROUND_MAX) {
 			// ラウンド開始時に初期化
 			if (this.roundStartFlag) {
@@ -187,15 +224,16 @@ public class Replay extends GameScene {
 					}
 					this.nowFrame++;
 				}
-				
+
 				if (!this.isFinished) {
 					// 画面をDrawerクラスで描画
 					ResourceDrawer.getInstance().drawResource(this.fighting.getCharacters(),
 							this.fighting.getProjectileDeque(), this.fighting.getHitEffectList(),
 							this.frameData.getRemainingTimeMilliseconds(), this.currentRound);
 
-					GraphicManager.getInstance().drawString("PlaySpeed:" + this.playSpeedArray[this.playSpeedIndex], 50, 550);
-					
+					GraphicManager.getInstance().drawString("PlaySpeed:" + this.playSpeedArray[this.playSpeedIndex], 50,
+							550);
+
 					this.screenData = new ScreenData(GraphicManager.getInstance().getScreenImage());
 				}
 			}
@@ -219,7 +257,7 @@ public class Replay extends GameScene {
 		this.frameData = null;
 		this.screenData = null;
 		this.keyData = null;
-		
+
 		InputManager.getInstance().close();
 		ThreadController.getInstance().close();
 
@@ -248,14 +286,16 @@ public class Replay extends GameScene {
 	private void processingGame() {
 		this.currentFrameTime = System.nanoTime();
 		this.keyData = createKeyData();
-		
-		if (this.isFinished) return;
-		
+
+		if (this.isFinished)
+			return;
+
 		if (this.nowFrame == 0) {
 			this.audioData = new AudioData();
 
 			SoundManager.getInstance().play2(audioSource,
-					SoundManager.getInstance().getBackGroundMusicBuffer(), GameSetting.STAGE_WIDTH / 2, GameSetting.STAGE_HEIGHT / 2, true);
+					SoundManager.getInstance().getBackGroundMusicBuffer(), GameSetting.STAGE_WIDTH / 2,
+					GameSetting.STAGE_HEIGHT / 2, true);
 			if (FlagSetting.enableReplaySound) {
 				SoundManager.getInstance().play(this.audioSource, this.audioBuffer);
 			}
@@ -266,7 +306,7 @@ public class Replay extends GameScene {
 		this.fighting.processingFight(this.nowFrame, this.keyData);
 		this.frameData = this.fighting.createFrameData(this.nowFrame, this.currentRound);
 		ThreadController.getInstance().setFrameData(this.frameData, this.screenData, this.audioData);
-		
+
 		SoundManager.getInstance().playback(audioSource, audioData.getRawShortDataAsBytes());
 	}
 
@@ -277,21 +317,21 @@ public class Replay extends GameScene {
 		this.isFinished = true;
 		this.currentRound++;
 		this.roundStartFlag = true;
-		
-		Logger.getAnonymousLogger().log(Level.INFO, String.format("Round Duration: %.3f seconds (Expected %.3f)", 
+
+		Logger.getAnonymousLogger().log(Level.INFO, String.format("Round Duration: %.3f seconds (Expected %.3f)",
 				(double) (currentFrameTime - roundStartTime) / 1e9, (double) (this.nowFrame + 1) / 60));
-		
+
 		RoundResult roundResult = new RoundResult(this.frameData);
 		ThreadController.getInstance().sendRoundResult(roundResult);
 
 		SoundManager.getInstance().stopAll();
 		SoundManager.getInstance().stopPlayback(audioSource);
-		
+
 		if (FlagSetting.enableReplaySound) {
 			this.audioSource.clearBuffer();
 		}
 	}
-	
+
 	private void processingGameEnd() {
 		ThreadController.getInstance().gameEnd();
 	}
@@ -314,7 +354,7 @@ public class Replay extends GameScene {
 	private boolean isTimeOver() {
 		return this.nowFrame == GameSetting.ROUND_FRAME_NUMBER - 1;
 	}
-	
+
 	/**
 	 * 各ラウンド開始時に, 対戦情報や現在のフレームなどの初期化を行う．
 	 */
@@ -324,7 +364,7 @@ public class Replay extends GameScene {
 		this.roundStartFlag = false;
 		this.elapsedBreakTime = 0;
 		this.isFinished = false;
-		
+
 		if (FlagSetting.enableReplaySound) {
 			String soundPath = "./log/sound/" + LaunchSetting.replayName + "_" + this.currentRound + ".wav";
 			this.audioBuffer.registerSound(soundPath);
@@ -393,7 +433,7 @@ public class Replay extends GameScene {
 	 * int型変数をboolean型に変換する．
 	 *
 	 * @param i
-	 *            変換したいint型の変数
+	 *          変換したいint型の変数
 	 *
 	 * @return {@code true} 引数が1のとき, {@code false} otherwise
 	 */
