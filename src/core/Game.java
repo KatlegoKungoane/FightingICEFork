@@ -3,6 +3,7 @@ package core;
 import java.awt.Font;
 import java.io.File;
 import java.io.IOException;
+import java.net.ServerSocket;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -149,7 +150,8 @@ public class Game extends GameManager {
                     break;
                 case "--port":
                     int port = Integer.parseInt(options[++i]);
-                    LaunchSetting.serverPort = port;
+                    // We are going to use a free port from the OS now
+                    // LaunchSetting.serverPort = port;
                     break;
                 case "--pyftg-mode":
                     FlagSetting.enablePyftgMode = true;
@@ -197,6 +199,15 @@ public class Game extends GameManager {
                 default:
                     Logger.getAnonymousLogger().log(Level.WARNING, "Arguments error: unknown format is exist. -> " + options[i] + " ?");
             }
+        }
+
+
+        // Code for getting a free port
+        try (ServerSocket socket = new ServerSocket(0)) {
+            LaunchSetting.serverPort = socket.getLocalPort();
+            System.out.println("<PORT>:" + Integer.toString(LaunchSetting.serverPort));
+        } catch (IOException e) {
+            System.err.println("Could not find a free port: " + e.getMessage());
         }
     }
 
