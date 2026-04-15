@@ -203,11 +203,13 @@ public class Game extends GameManager {
 
 
         // Code for getting a free port
-        try (ServerSocket socket = new ServerSocket(0)) {
-            LaunchSetting.serverPort = socket.getLocalPort();
-            System.out.println("<PORT>:" + Integer.toString(LaunchSetting.serverPort));
+        try {
+            SocketServer.getInstance().startServer();
+            Logger.getAnonymousLogger().log(Level.INFO,
+                    "Socket server is started, listening on " + LaunchSetting.serverPort);
         } catch (IOException e) {
-            System.err.println("Could not find a free port: " + e.getMessage());
+            e.printStackTrace();
+            Logger.getAnonymousLogger().log(Level.INFO, "Fail to start gRPC server");
         }
     }
 
@@ -220,15 +222,6 @@ public class Game extends GameManager {
         }
 
         createLogDirectories();
-
-        try {
-            SocketServer.getInstance().startServer(LaunchSetting.serverPort);
-            Logger.getAnonymousLogger().log(Level.INFO,
-                    "Socket server is started, listening on " + LaunchSetting.serverPort);
-        } catch (IOException e) {
-            e.printStackTrace();
-            Logger.getAnonymousLogger().log(Level.INFO, "Fail to start gRPC server");
-        }
 
         if (FlagSetting.enablePyftgMode) {
             Socket grpc = new Socket();
@@ -243,7 +236,7 @@ public class Game extends GameManager {
                     this.isExitFlag = true;
                 }
             }
-            
+
             if (!LaunchSetting.soundName.equals("Default")) {
                 ResourceSetting.SOUND_DIRECTORY = String.format("./data/sounds/%s/", LaunchSetting.soundName);
             }

@@ -3,7 +3,6 @@ package service;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
@@ -18,6 +17,7 @@ import protoc.ServiceProto.RunGameRequest;
 import protoc.ServiceProto.RunGameResponse;
 import protoc.ServiceProto.SpectateRequest;
 import setting.FlagSetting;
+import setting.LaunchSetting;
 import util.SocketUtil;
 
 public class SocketServer {
@@ -31,56 +31,56 @@ public class SocketServer {
 	private SocketGenerativeSound generativeSound;
 	private List<SocketStream> streams;
 	private DataOutputStream runGameClient;
-	
-	public static SocketServer getInstance() {
-        return SocketServerHolder.instance;
-    }
 
-    private static class SocketServerHolder {
-        private static final SocketServer instance = new SocketServer();
-    }
-	
+	public static SocketServer getInstance() {
+		return SocketServerHolder.instance;
+	}
+
+	private static class SocketServerHolder {
+		private static final SocketServer instance = new SocketServer();
+	}
+
 	public SocketServer() {
 		this.open = false;
 		this.serverHost = System.getenv("SERVER_HOST");
-		
+
 		if (this.serverHost == null) {
 			this.serverHost = "0.0.0.0";
 		}
-		
+
 		this.players = new SocketPlayer[] { new SocketPlayer(), new SocketPlayer() };
 		this.generativeSound = new SocketGenerativeSound();
 		this.streams = new ArrayList<>();
 	}
-	
+
 	public boolean isOpen() {
 		return this.open;
 	}
-	
+
 	public String getServerHost() {
 		return this.serverHost;
 	}
-	
+
 	public int getServerPort() {
 		return serverPort;
 	}
-	
+
 	public SocketPlayer getPlayer(int index) {
 		return this.players[index];
 	}
-	
+
 	public SocketGenerativeSound getGenerativeSound() {
 		return this.generativeSound;
 	}
-	
+
 	public List<SocketStream> getStreams() {
 		return this.streams;
 	}
-	
+
 	public RunGameResponse callRunGame(RunGameRequest request) {
 		GrpcStatusCode statusCode;
 		String responseMessage;
-		
+
 		if (!FlagSetting.enablePyftgMode) {
 			statusCode = GrpcStatusCode.FAILED;
 			responseMessage = "The game is not in auto mode.";
@@ -93,37 +93,36 @@ public class SocketServer {
 
 			if (char1Request.contains("<name>")) {
 				String[] nameGameNamePayload = request.getCharacter1().split("<name>");
-				characterName1 = nameGameNamePayload[1];	
+				characterName1 = nameGameNamePayload[1];
 				GameService.getInstance().setGameName(nameGameNamePayload[0]);
-			}
-			else {
+			} else {
 				characterName1 = char1Request;
 			}
-			
+
 			String characterName2 = request.getCharacter2();
 			String aiName1 = request.getPlayer1();
 			String aiName2 = request.getPlayer2();
 			int gameNumber = request.getGameNumber();
-			
+
 			GameService.getInstance().setCharacterName(true, characterName1);
 			GameService.getInstance().setCharacterName(false, characterName2);
 			GameService.getInstance().setAIName(true, aiName1);
 			GameService.getInstance().setAIName(false, aiName2);
 			GameService.getInstance().setGameNumber(gameNumber);
 			GameService.getInstance().setRunFlag(true);
-			
+
 			statusCode = GrpcStatusCode.SUCCESS;
 			responseMessage = "Success";
 		}
-		
+
 		RunGameResponse response = RunGameResponse.newBuilder()
 				.setStatusCode(statusCode)
 				.setResponseMessage(responseMessage)
 				.build();
-		
+
 		return response;
 	}
-	
+
 	public void sendRunGameComplete() {
 		if (this.runGameClient != null) {
 			try {
@@ -131,26 +130,26 @@ public class SocketServer {
 			} catch (IOException e) {
 				Logger.getAnonymousLogger().log(Level.SEVERE, e.getMessage());
 			}
-			
+
 			this.runGameClient = null;
 		}
 	}
-	
-	public void startServer(int serverPort) throws IOException {
-		this.serverPort = serverPort;
-		server = new ServerSocket();
-		server.bind(new InetSocketAddress(this.serverHost, serverPort));
-		
+
+	public void startServer() throws IOException {
+		server = new ServerSocket(0);
+		this.serverPort = server.getLocalPort();
+		LaunchSetting.serverPort = this.serverPort;
+
 		serverThread = new Thread(() -> {
 			while (!Thread.currentThread().isInterrupted()) {
 				try {
 					Socket client = server.accept();
 					client.setTcpNoDelay(true);
-					
+
 					DataInputStream din = new DataInputStream(client.getInputStream());
 					DataOutputStream dout = new DataOutputStream(client.getOutputStream());
 					byte[] data = SocketUtil.socketRecv(din, 1);
-					
+
 					if (data[0] == 1) {
 						// Play Agent
 						byte[] requestAsBytes = SocketUtil.socketRecv(din, -1);
@@ -186,37 +185,39 @@ public class SocketServer {
 						Logger.getAnonymousLogger().log(Level.INFO, "Received close game request");
 					}
 				} catch (IOException e) {
-					if (!Thread.currentThread().isInterrupted()) Logger.getAnonymousLogger().log(Level.SEVERE, e.getMessage());
+					if (!Thread.currentThread().isInterrupted())
+						Logger.getAnonymousLogger().log(Level.SEVERE, e.getMessage());
 				}
 			}
 		});
 		serverThread.start();
-		
+
 		this.open = true;
 	}
-	
+
 	public void stopServer() throws IOException {
 		this.notifyTaskFinished();
-		
+
 		serverThread.interrupt();
 		server.close();
-		
+
 		serverThread = null;
 		this.open = false;
-    	Logger.getAnonymousLogger().log(Level.INFO, "Socket server is stopped");
+		Logger.getAnonymousLogger().log(Level.INFO, "Socket server is stopped");
 	}
-	
+
 	public void notifyTaskFinished() {
 		this.sendRunGameComplete();
-		
+
 		for (int i = 0; i < 2; i++) {
-			this.players[i].cancel();;
+			this.players[i].cancel();
+			;
 		}
-		
+
 		if (!this.generativeSound.isKeepAlive()) {
 			this.generativeSound.cancel();
 		}
-		
+
 		Iterator<SocketStream> streamsIter = this.streams.iterator();
 		while (streamsIter.hasNext()) {
 			SocketStream streamClient = streamsIter.next();
@@ -226,5 +227,5 @@ public class SocketServer {
 			}
 		}
 	}
-	
+
 }
