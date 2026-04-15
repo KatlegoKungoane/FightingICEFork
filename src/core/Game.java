@@ -207,6 +207,7 @@ public class Game extends GameManager {
             SocketServer.getInstance().startServer();
             Logger.getAnonymousLogger().log(Level.INFO,
                     "Socket server is started, listening on " + LaunchSetting.serverPort);
+            System.out.println("<PORT>:" + Integer.toString(LaunchSetting.serverPort));
         } catch (IOException e) {
             e.printStackTrace();
             Logger.getAnonymousLogger().log(Level.INFO, "Fail to start gRPC server");
