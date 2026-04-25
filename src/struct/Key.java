@@ -74,7 +74,7 @@ public class Key {
 		this.D = false;
 		this.L = false;
 	}
-	
+
 	public boolean isEmpty() {
 		if (this.A) return false;
 		else if (this.B) return false;
@@ -112,7 +112,7 @@ public class Key {
 
 		return lever;
 	}
-	
+
 	public GrpcKey toProto() {
 		return GrpcKey.newBuilder()
     			.setA(this.A)
@@ -124,5 +124,34 @@ public class Key {
     			.setU(this.U)
     			.build();
 	}
-	
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Key:");
+        if (this.A) {
+            sb.append("A");
+        }
+        if (this.B) {
+            sb.append("B");
+        }
+        if (this.C) {
+            sb.append("C");
+        }
+        if (this.U) {
+            sb.append("U");
+        }
+        if (this.D) {
+            sb.append("D");
+        }
+        if (this.L) {
+            sb.append("L");
+        }
+        if (this.R) {
+            sb.append("R");
+        }
+
+        return sb.toString();
+    }
+
 }
