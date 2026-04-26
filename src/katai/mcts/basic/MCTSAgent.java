@@ -7,8 +7,9 @@ import java.util.List;
 import aiinterface.AIInterface;
 import aiinterface.CommandCenter;
 import enumerate.Action;
-import enumerate.State;
 import fighting.Motion;
+import katai.mcts.basic.MCTSNode.Weights;
+import katai.mcts.basic.MCTSNode.HitPointsWeights;
 import simulator.Simulator;
 import struct.FrameData;
 import struct.GameData;
@@ -88,13 +89,7 @@ public class MCTSAgent implements AIInterface {
 
     @Override
     public Key input() {
-        Key key = this.commandCenter.getSkillKey();
-        return key;
-        // Key k = new Key();
-        // if (this.frameData.getFramesNumber() % 60 < 30) {
-        // k.A = true;
-        // }
-        // return k;
+        return this.commandCenter.getSkillKey();
     }
 
     @Override
@@ -112,15 +107,27 @@ public class MCTSAgent implements AIInterface {
     private Action runMCTS(int maxDepth) {
         long startTime = System.nanoTime();
         long timeBudget = 10 * 1_000_000L + startTime;
+        Weights weightsConfig = new Weights(
+                new HitPointsWeights(0.5, 0.5),
+                -1,
+                10);
 
         MCTSTree tree = new MCTSTree(
                 maxDepth,
                 this.simulator,
-                new MCTSNode(this.frameData, null, this.playerNumber, null),
+                new MCTSNode(
+                        this.frameData,
+                        null,
+                        this.playerNumber,
+                        null,
+                        this.frameData.getCharacter(true),
+                        this.frameData.getCharacter(false),
+                        weightsConfig),
                 this.playerOneCommon,
                 this.playerTwoCommon,
                 this.playerOneMotionList,
-                this.playerTwoMotionList);
+                this.playerTwoMotionList,
+                weightsConfig);
 
         long runTime = System.nanoTime();
 

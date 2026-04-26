@@ -2,16 +2,13 @@ package katai.mcts.basic;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
 import enumerate.Action;
 import enumerate.State;
 import fighting.Motion;
-import katai.mcts.basic.Common.ActionCost;
 import katai.mcts.basic.Common.FilteredActionList;
+import katai.mcts.basic.MCTSNode.Weights;
 import simulator.Simulator;
-import struct.FrameData;
 import struct.CharacterData;
 
 public class MCTSTree {
@@ -24,6 +21,7 @@ public class MCTSTree {
     private Simulator simulator;
     private Common playerOneCommon;
     private Common playerTwoCommon;
+    private Weights weightsConfig;
 
     public MCTSTree(
             int maxDepth,
@@ -32,7 +30,8 @@ public class MCTSTree {
             Common playerOneCommon,
             Common playerTwoCommon,
             ArrayList<Motion> playerOneMotionList,
-            ArrayList<Motion> playerTwoMotionList) {
+            ArrayList<Motion> playerTwoMotionList,
+            Weights weightsConfig) {
         this.headNode = headNode;
         this.maxDepth = maxDepth;
 
@@ -45,6 +44,8 @@ public class MCTSTree {
         this.simulator = simulator;
         this.playerOneCommon = playerOneCommon;
         this.playerTwoCommon = playerTwoCommon;
+
+        this.weightsConfig = weightsConfig;
     }
 
     public Action getBestAction() {
@@ -90,8 +91,14 @@ public class MCTSTree {
                         this.playerOneMotionList,
                         this.playerTwoMotionList)) {
 
-                    currentNode.children
-                            .add(new MCTSNode(currentNode.state, currentNode, !currentNode.playerNumber, action));
+                    currentNode.children.add(new MCTSNode(
+                            currentNode.state,
+                            currentNode,
+                            !currentNode.playerNumber,
+                            action,
+                            currentNode.state.getCharacter(true),
+                            currentNode.state.getCharacter(false),
+                            this.weightsConfig));
                 }
             }
 

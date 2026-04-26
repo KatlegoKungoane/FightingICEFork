@@ -2,13 +2,13 @@ package katai.mcts.basic;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Random;
 
 import fighting.Fighting;
 import fighting.Motion;
 import katai.mcts.basic.Common.FilteredActionList;
 import simulator.Simulator;
 import struct.FrameData;
+import struct.CharacterData;
 
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -26,8 +26,44 @@ public class MCTSNode extends Fighting {
     Action resultingAction;
     ArrayDeque<Action> activePlayerActions;
     ArrayDeque<Action> opponentPlayerActions;
+    CharacterData previousPlayerOneCharacterData;
+    CharacterData previousPlayerTwoCharacterData;
+    Weights weights;
 
-    public MCTSNode(FrameData frameData, MCTSNode parent, boolean playerNumber, Action action) {
+    public static class HitPointsWeights {
+        public double agentWeight;
+        public double opponentWeight;
+
+        public HitPointsWeights(double agentWeight, double opponentWeight) {
+            this.agentWeight = agentWeight;
+            this.opponentWeight = opponentWeight;
+        }
+    }
+
+    public static class Weights {
+        public HitPointsWeights hitPoints;
+        public double time;
+        public double distance;
+
+        public Weights(
+                HitPointsWeights hitPoints,
+                double time,
+                double distance) {
+
+            this.hitPoints = hitPoints;
+            this.time = time;
+            this.distance = distance;
+        }
+    }
+
+    public MCTSNode(
+            FrameData frameData,
+            MCTSNode parent,
+            boolean playerNumber,
+            Action action,
+            CharacterData previousPlayerOneCharacterData,
+            CharacterData previousPlayerTwoCharacterData,
+            Weights weights) {
         this.state = frameData;
         this.parent = parent;
         this.resultingAction = action;
@@ -41,7 +77,10 @@ public class MCTSNode extends Fighting {
 
         this.justCreated = parent != null;
 
-        // System.out.println("Node created");
+        this.previousPlayerOneCharacterData = previousPlayerOneCharacterData;
+        this.previousPlayerTwoCharacterData = previousPlayerTwoCharacterData;
+
+        this.weights = weights;
     }
 
     public double ucb1() {
@@ -98,8 +137,7 @@ public class MCTSNode extends Fighting {
             if (this.playerNumber) {
                 myCommon = playerOneCommon;
                 opponentCommon = playerTwoCommon;
-            }
-            else {
+            } else {
                 myCommon = playerTwoCommon;
                 opponentCommon = playerOneCommon;
             }
@@ -180,8 +218,51 @@ public class MCTSNode extends Fighting {
             currentDepth += 1;
         }
 
-        return ((double) currentState.getCharacter(this.playerNumber).getHp())
-                - ((double) currentState.getCharacter(!this.playerNumber).getHp());
+        return getReward();
+    }
+
+    private double getReward() {
+        // r = win + hp_reward + distance_reward + time_reward
+
+        CharacterData playerOneCharacterData = this.state.getCharacter(this.playerNumber);
+        CharacterData playerTwoCharacterData = this.state.getCharacter(!this.playerNumber);
+
+        // Maximize reward if killing move
+        if (playerOneCharacterData.getHp() < 0) {
+            return Double.NEGATIVE_INFINITY;
+        }
+
+        if (playerTwoCharacterData.getHp() < 0) {
+            return Double.POSITIVE_INFINITY;
+        }
+
+        return calculateHpReward(playerOneCharacterData, playerTwoCharacterData)
+                + calculateDistanceReward(playerOneCharacterData, playerTwoCharacterData)
+                + this.weights.time * this.state.getFramesNumber();
+    }
+
+    private double calculateDistanceReward(
+            CharacterData playerOneCharacterData,
+            CharacterData playerTwoCharacterData) {
+
+        return this.weights.distance
+                * Math.abs(playerOneCharacterData.getCenterX() - playerTwoCharacterData.getCenterX());
+    }
+
+    private double calculateHpReward(
+            CharacterData playerOneCharacterData,
+            CharacterData playerTwoCharacterData) {
+
+        double playerOneDiff = (double) playerOneCharacterData.getHp() - this.previousPlayerOneCharacterData.getHp();
+        double playerTwoDiff = (double) playerTwoCharacterData.getHp() - this.previousPlayerTwoCharacterData.getHp();
+
+        if (this.playerNumber) {
+            return this.weights.hitPoints.agentWeight * playerOneDiff
+                    - this.weights.hitPoints.opponentWeight * playerTwoDiff;
+        }
+
+        return this.weights.hitPoints.agentWeight * playerTwoDiff
+                - this.weights.hitPoints.opponentWeight * playerOneDiff;
     }
 
     public void backPropagation(double value, boolean headNodePlayerNumber) {
