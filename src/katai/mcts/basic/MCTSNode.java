@@ -119,7 +119,7 @@ public class MCTSNode extends Fighting {
 
             this.state = simulator.simulate(
                     this.state,
-                    !this.playerNumber,
+                    this.playerNumber,
                     this.activePlayerActions,
                     this.opponentPlayerActions,
                     opponentMotionList[this.resultingAction.ordinal()].getFrameNumber());
@@ -224,16 +224,20 @@ public class MCTSNode extends Fighting {
     private double getReward() {
         // r = win + hp_reward + distance_reward + time_reward
 
-        CharacterData playerOneCharacterData = this.state.getCharacter(this.playerNumber);
-        CharacterData playerTwoCharacterData = this.state.getCharacter(!this.playerNumber);
+        CharacterData playerOneCharacterData = this.state.getCharacter(true);
+        CharacterData playerTwoCharacterData = this.state.getCharacter(false);
 
         // Maximize reward if killing move
         if (playerOneCharacterData.getHp() < 0) {
-            return Double.NEGATIVE_INFINITY;
+            return this.playerNumber
+                    ? Double.NEGATIVE_INFINITY
+                    : Double.POSITIVE_INFINITY;
         }
 
         if (playerTwoCharacterData.getHp() < 0) {
-            return Double.POSITIVE_INFINITY;
+            return this.playerNumber
+                    ? Double.POSITIVE_INFINITY
+                    : Double.NEGATIVE_INFINITY;
         }
 
         return calculateHpReward(playerOneCharacterData, playerTwoCharacterData)

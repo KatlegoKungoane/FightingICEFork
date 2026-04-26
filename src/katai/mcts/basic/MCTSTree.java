@@ -66,7 +66,7 @@ public class MCTSTree {
         return this.headNode.children.get(bestActionIndex).resultingAction;
     }
 
-    public void iteration(int maxdepth) {
+    public void iteration(int maxDepth) {
         MCTSNode currentNode = this.treeTraversal(this.headNode);
         CharacterData currentCharacter = currentNode.state.getCharacter(currentNode.playerNumber);
 
@@ -94,7 +94,7 @@ public class MCTSTree {
                     currentNode.children.add(new MCTSNode(
                             currentNode.state,
                             currentNode,
-                            !currentNode.playerNumber,
+                            currentNode.playerNumber,
                             action,
                             currentNode.state.getCharacter(true),
                             currentNode.state.getCharacter(false),

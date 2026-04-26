@@ -108,9 +108,9 @@ public class MCTSAgent implements AIInterface {
         long startTime = System.nanoTime();
         long timeBudget = 10 * 1_000_000L + startTime;
         Weights weightsConfig = new Weights(
-                new HitPointsWeights(0.5, 0.5),
-                -1,
-                10);
+                new HitPointsWeights(0.5, 1),
+                0,
+                0);
 
         MCTSTree tree = new MCTSTree(
                 maxDepth,
