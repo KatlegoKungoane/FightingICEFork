@@ -174,7 +174,7 @@ public class MCTSNode extends Fighting {
                     opponentActionIndex = ThreadLocalRandom.current().nextInt(opponentActionInformation.maxIndex);
                     if (!MCTSTree.ableAction(
                             !this.playerNumber,
-                            this.state.getCharacter(this.playerNumber),
+                            this.state.getCharacter(!this.playerNumber),
                             opponentActionInformation.actionList[opponentActionIndex],
                             playerOneMotionList,
                             playerTwoMotionList)) {

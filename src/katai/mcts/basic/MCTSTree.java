@@ -2,6 +2,7 @@ package katai.mcts.basic;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.concurrent.ThreadLocalRandom;
 
 import enumerate.Action;
 import enumerate.State;
@@ -50,14 +51,13 @@ public class MCTSTree {
 
     public Action getBestAction() {
         int bestActionIndex = -1;
-        double bestActionAverageValue = -1;
+        int mostVisitedActionValue = -1;
 
         int counter = 0;
         for (MCTSNode childNode : this.headNode.children) {
-            double childAverageScore = childNode.getAverageScore();
-            if (bestActionIndex == -1 || childAverageScore > bestActionAverageValue) {
+            if (bestActionIndex == -1 || childNode.visits > mostVisitedActionValue) {
                 bestActionIndex = counter;
-                bestActionAverageValue = childAverageScore;
+                mostVisitedActionValue = childNode.visits;
             }
 
             counter++;
@@ -72,7 +72,8 @@ public class MCTSTree {
 
         // If already visited, add all its kids to the tree and the current node is the
         // first in the tree
-        if (currentNode.visits != 0 || (currentNode == this.headNode && this.headNode.visits == 0)) {
+        if (currentNode.children.isEmpty() && currentNode.visits != 0
+                || (currentNode == this.headNode && this.headNode.visits == 0)) {
             Common common = currentNode.playerNumber
                     ? this.playerOneCommon
                     : this.playerTwoCommon;
@@ -103,7 +104,7 @@ public class MCTSTree {
             }
 
             if (!currentNode.children.isEmpty()) {
-                currentNode = currentNode.children.get(0);
+                currentNode = currentNode.children.get(ThreadLocalRandom.current().nextInt(currentNode.children.size()));
             }
         }
 
@@ -119,7 +120,7 @@ public class MCTSTree {
     }
 
     private MCTSNode treeTraversal(MCTSNode node) {
-        if (node.children.size() == 0) {
+        if (node.children.isEmpty()) {
             // Is a leaf node
             return node;
         } else {
@@ -142,7 +143,7 @@ public class MCTSTree {
                 counter++;
             }
 
-            return node.children.get(bestNodeIndex);
+            return treeTraversal(node.children.get(bestNodeIndex));
         }
     }
 
