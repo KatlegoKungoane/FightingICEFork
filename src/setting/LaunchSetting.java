@@ -4,6 +4,7 @@ import enumerate.BackgroundType;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Random;
 
 /**
  * キャラクターの最大HPや試合の繰り返し回数など、試合を行う際に必要な設定を扱うクラス．
@@ -90,4 +91,10 @@ public final class LaunchSetting {
     }};
 
 	public static String gameTime;
+
+	/**
+	 * Shared seeded RNG. Replaces ad-hoc Math.random() / ThreadLocalRandom calls
+	 * so runs are reproducible. Change the seed here to vary experiments.
+	 */
+	public static final Random rng = new Random(42L);
 }

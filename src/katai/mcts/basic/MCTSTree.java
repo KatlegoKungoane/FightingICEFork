@@ -2,13 +2,13 @@ package katai.mcts.basic;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.concurrent.ThreadLocalRandom;
 
 import enumerate.Action;
 import enumerate.State;
 import fighting.Motion;
 import katai.mcts.basic.Common.FilteredActionList;
 import katai.mcts.basic.MCTSNode.Weights;
+import setting.LaunchSetting;
 import simulator.Simulator;
 import struct.CharacterData;
 
@@ -104,7 +104,7 @@ public class MCTSTree {
             }
 
             if (!currentNode.children.isEmpty()) {
-                currentNode = currentNode.children.get(ThreadLocalRandom.current().nextInt(currentNode.children.size()));
+                currentNode = currentNode.children.get(LaunchSetting.rng.nextInt(currentNode.children.size()));
             }
         }
 
