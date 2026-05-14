@@ -1,6 +1,7 @@
 package fighting;
 
 import image.Image;
+import setting.LaunchSetting;
 
 /**
  * 攻撃が当たったときに表示するエフェクト及びアッパー攻撃のエフェクトを管理するクラス.<br>
@@ -90,8 +91,8 @@ public class HitEffect extends Effect {
 	 */
 	private void initialize(boolean isHit, boolean variation) {
 		this.isHit = isHit;
-		this.variationX = variation ? (int) (Math.random() * 30) - 15 : 0;
-		this.variationY = variation ? (int) (Math.random() * 30) - 15 : 0;
+		this.variationX = variation ? LaunchSetting.rng.nextInt(30) - 15 : 0;
+		this.variationY = variation ? LaunchSetting.rng.nextInt(30) - 15 : 0;
 	}
 
 	/**

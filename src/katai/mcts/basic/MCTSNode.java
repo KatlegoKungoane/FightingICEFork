@@ -6,11 +6,11 @@ import java.util.ArrayList;
 import fighting.Fighting;
 import fighting.Motion;
 import katai.mcts.basic.Common.FilteredActionList;
+import setting.GameSetting;
+import setting.LaunchSetting;
 import simulator.Simulator;
 import struct.FrameData;
 import struct.CharacterData;
-
-import java.util.concurrent.ThreadLocalRandom;
 
 import enumerate.Action;
 import enumerate.State;
@@ -84,7 +84,7 @@ public class MCTSNode extends Fighting {
     }
 
     public double ucb1() {
-        double c = 2;
+        double c = Math.sqrt(2);
 
         if (this.visits == 0) {
             return Double.POSITIVE_INFINITY;
@@ -115,14 +115,56 @@ public class MCTSNode extends Fighting {
             this.activePlayerActions.clear();
             this.opponentPlayerActions.clear();
 
+            // Get random opponent action, right now, we are playing against a statue
+            Common opponentCommon = this.playerNumber
+                    ? playerTwoCommon
+                    : playerOneCommon;
+
+            FilteredActionList opponentActionInformation = opponentCommon.getFilteredActions(this.state);
+
+            int opponentActionIndex = this.state.getCharacter(!this.playerNumber).getState() == State.DOWN
+                    || opponentActionInformation.maxIndex <= 0
+                            ? 0
+                            : -1;
+
+            // TODO: Formalize me, this is sloppy
+            int missCount = 0;
+            while (opponentActionIndex == -1) {
+                opponentActionIndex = LaunchSetting.rng.nextInt(opponentActionInformation.maxIndex);
+                if (!MCTSTree.ableAction(
+                        !this.playerNumber,
+                        this.state.getCharacter(!this.playerNumber),
+                        opponentActionInformation.actionList[opponentActionIndex],
+                        playerOneMotionList,
+                        playerTwoMotionList)) {
+                    opponentActionIndex = -1;
+                }
+                missCount++;
+
+                if (missCount >= 1000) {
+                    System.out.println("Find Opp move MISS");
+                    System.out.println(this.state.getCharacter(!this.playerNumber).getState().name());
+
+                    if (opponentActionIndex == -1) {
+                        opponentActionIndex = 0;
+                    }
+                }
+            }
+
+            Action opponentAction = opponentActionInformation.actionList[opponentActionIndex];
+
             this.activePlayerActions.add(this.resultingAction);
+            this.opponentPlayerActions.add(opponentAction);
+
+            int maxFrameCount = Math.max(selectedMotionList[this.resultingAction.ordinal()].getFrameNumber(),
+                    opponentMotionList[opponentActionIndex].getFrameNumber());
 
             this.state = simulator.simulate(
                     this.state,
                     this.playerNumber,
                     this.activePlayerActions,
                     this.opponentPlayerActions,
-                    opponentMotionList[this.resultingAction.ordinal()].getFrameNumber());
+                    maxFrameCount);
 
             this.justCreated = false;
         }
@@ -159,7 +201,7 @@ public class MCTSNode extends Fighting {
             int missCount = 0;
             while (myActionIndex == -1 || opponentActionIndex == -1) {
                 if (myActionIndex == -1) {
-                    myActionIndex = ThreadLocalRandom.current().nextInt(myActionInformation.maxIndex);
+                    myActionIndex = LaunchSetting.rng.nextInt(myActionInformation.maxIndex);
                     if (!MCTSTree.ableAction(
                             this.playerNumber,
                             this.state.getCharacter(this.playerNumber),
@@ -171,7 +213,7 @@ public class MCTSNode extends Fighting {
                 }
 
                 if (opponentActionIndex == -1) {
-                    opponentActionIndex = ThreadLocalRandom.current().nextInt(opponentActionInformation.maxIndex);
+                    opponentActionIndex = LaunchSetting.rng.nextInt(opponentActionInformation.maxIndex);
                     if (!MCTSTree.ableAction(
                             !this.playerNumber,
                             this.state.getCharacter(!this.playerNumber),
@@ -188,11 +230,11 @@ public class MCTSNode extends Fighting {
                     System.out.println(this.state.getCharacter(this.playerNumber).getState().name());
                     System.out.println(this.state.getCharacter(!this.playerNumber).getState().name());
                     if (myActionIndex == -1) {
-                        myActionIndex = Action.STAND.ordinal();
+                        myActionIndex = 0;
                     }
 
                     if (opponentActionIndex == -1) {
-                        opponentActionIndex = Action.STAND.ordinal();
+                        opponentActionIndex = 0;
                     }
                 }
             }
@@ -218,31 +260,32 @@ public class MCTSNode extends Fighting {
             currentDepth += 1;
         }
 
-        return getReward();
+        return getReward(currentState);
     }
 
-    private double getReward() {
+    private double getReward(FrameData currentState) {
         // r = win + hp_reward + distance_reward + time_reward
+        double maxReward = this.weights.distance
+                + Math.max(this.weights.hitPoints.agentWeight, this.weights.hitPoints.opponentWeight);
 
-        CharacterData playerOneCharacterData = this.state.getCharacter(true);
-        CharacterData playerTwoCharacterData = this.state.getCharacter(false);
+        CharacterData playerOneCharacterData = currentState.getCharacter(true);
+        CharacterData playerTwoCharacterData = currentState.getCharacter(false);
 
         // Maximize reward if killing move
         if (playerOneCharacterData.getHp() < 0) {
             return this.playerNumber
-                    ? Double.NEGATIVE_INFINITY
-                    : Double.POSITIVE_INFINITY;
+                    ? maxReward * -1
+                    : maxReward;
         }
 
         if (playerTwoCharacterData.getHp() < 0) {
             return this.playerNumber
-                    ? Double.POSITIVE_INFINITY
-                    : Double.NEGATIVE_INFINITY;
+                    ? maxReward
+                    : maxReward * -1;
         }
 
         return calculateHpReward(playerOneCharacterData, playerTwoCharacterData)
-                + calculateDistanceReward(playerOneCharacterData, playerTwoCharacterData)
-                + this.weights.time * this.state.getFramesNumber();
+                + calculateDistanceReward(playerOneCharacterData, playerTwoCharacterData);
     }
 
     private double calculateDistanceReward(
@@ -250,15 +293,20 @@ public class MCTSNode extends Fighting {
             CharacterData playerTwoCharacterData) {
 
         return this.weights.distance
-                * Math.abs(playerOneCharacterData.getCenterX() - playerTwoCharacterData.getCenterX());
+                * (Math.abs(playerOneCharacterData.getCenterX() - playerTwoCharacterData.getCenterX())
+                        / GameSetting.STAGE_WIDTH);
     }
 
     private double calculateHpReward(
             CharacterData playerOneCharacterData,
             CharacterData playerTwoCharacterData) {
 
-        double playerOneDiff = (double) playerOneCharacterData.getHp() - this.previousPlayerOneCharacterData.getHp();
-        double playerTwoDiff = (double) playerTwoCharacterData.getHp() - this.previousPlayerTwoCharacterData.getHp();
+        // Normally never reaches max range, we can think about a better solution for
+        // this later
+        double playerOneDiff = ((double) playerOneCharacterData.getHp() - this.previousPlayerOneCharacterData.getHp())
+                / LaunchSetting.maxHp[0];
+        double playerTwoDiff = ((double) playerTwoCharacterData.getHp() - this.previousPlayerTwoCharacterData.getHp())
+                / LaunchSetting.maxHp[1];
 
         if (this.playerNumber) {
             return this.weights.hitPoints.agentWeight * playerOneDiff
@@ -302,7 +350,7 @@ public class MCTSNode extends Fighting {
     // 50, 51, 52, 53, 54, 55 };
 
     // for (int i = actionIndices.length - 1; i > 0; i--) {
-    // int index = ThreadLocalRandom.current().nextInt(i + 1);
+    // int index = LaunchSetting.rng.nextInt(i + 1);
 
     // // Simple swap
     // int temp = actionIndices[index];
