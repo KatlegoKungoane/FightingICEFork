@@ -1,25 +1,26 @@
-package katai.mcts.basic;
+package katai.mcts.open_loop;
 
-import java.io.BufferedWriter;
-import java.io.FileWriter;
-import java.io.IOException;
+import aiinterface.AIInterface;
+import enumerate.Action;
+import katai.mcts.open_loop.MCTSNode.Weights;
+import katai.mcts.Common;
+import katai.mcts.open_loop.MCTSNode.HitPointsWeights;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import aiinterface.AIInterface;
 import aiinterface.CommandCenter;
-import enumerate.Action;
 import fighting.Motion;
-import katai.mcts.basic.MCTSNode.Weights;
 import simulator.Simulator;
 import struct.FrameData;
 import struct.GameData;
 import struct.Key;
-import katai.mcts.Common;
-import katai.mcts.basic.MCTSNode.HitPointsWeights;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
 
-public class MCTSAgent implements AIInterface{
+public class MCTSAgent implements AIInterface {
     protected GameData gameData;
     protected boolean playerNumber;
     protected FrameData frameData;
@@ -93,10 +94,13 @@ public class MCTSAgent implements AIInterface{
         // }
         // }
 
-        if (!this.commandCenter.getSkillFlag() && this.frameData.getCharacter(this.playerNumber).isControl()) {
+        // TODO: AI told me to not worry about not being in control
+        // I guess not that bad because I can just cancel the skill next time I come
+        // if (!this.commandCenter.getSkillFlag() && this.frameData.getCharacter(this.playerNumber).isControl()) {
+        if (!this.commandCenter.getSkillFlag()) {
             // MCTSAgent.writeToBuffer("Can do action, running MCTS");
             this.commandCenter.skillCancel();
-            Action bestAction = this.runMCTS(2);
+            Action bestAction = this.runMCTS(10);
             this.commandCenter.commandCall(bestAction.name());
         }
 
@@ -139,15 +143,17 @@ public class MCTSAgent implements AIInterface{
         long startTime = System.nanoTime();
         long timeBudget = 16_500_000L + startTime;
         Weights weightsConfig = new Weights(
-                new HitPointsWeights(20, 20),
+                new HitPointsWeights(1, 1),
                 0,
-                -0.5);
+                0);
+
+        FrameData newRootNode = this.simulator.simulate(this.frameData, playerNumber, null, null, 14);
 
         MCTSTree tree = new MCTSTree(
                 maxDepth,
                 this.simulator,
                 new MCTSNode(
-                        this.frameData,
+                        newRootNode,
                         null,
                         this.playerNumber,
                         Action.NEUTRAL,
@@ -168,7 +174,13 @@ public class MCTSAgent implements AIInterface{
         }
 
         this.iterationCounts.add(iterationCount);
-        return tree.getBestAction();
+        MCTSNode bestChild = tree.getBestChildNode();
+
+        if (bestChild == null) {
+            return Action.NEUTRAL;
+        } else {
+            return bestChild.actionSequence[0];
+        }
     }
 
 }

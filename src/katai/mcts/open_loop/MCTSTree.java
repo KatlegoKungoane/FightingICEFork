@@ -1,4 +1,4 @@
-package katai.mcts.basic;
+package katai.mcts.open_loop;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -8,7 +8,7 @@ import enumerate.State;
 import fighting.Motion;
 import katai.mcts.Common;
 import katai.mcts.Common.FilteredActionList;
-import katai.mcts.basic.MCTSNode.Weights;
+import katai.mcts.open_loop.MCTSNode.Weights;
 import setting.LaunchSetting;
 import simulator.Simulator;
 import struct.CharacterData;
@@ -50,7 +50,7 @@ public class MCTSTree {
         this.weightsConfig = weightsConfig;
     }
 
-    public Action getBestAction() {
+    public MCTSNode getBestChildNode() {
         int bestActionIndex = -1;
         int mostVisitedActionValue = -1;
 
@@ -65,41 +65,30 @@ public class MCTSTree {
         }
 
         if (bestActionIndex == -1) {
-            return Action.NEUTRAL;
+            return null;
         }
 
-        return this.headNode.children.get(bestActionIndex).resultingAction;
+
+        return this.headNode.children.get(bestActionIndex);
     }
 
     public void iteration(int maxDepth) {
-        // MCTSAgent.writeToBuffer("Start of Iteration");
-        // MCTSAgent.writeToBuffer("Doing Traversal First");
         MCTSNode currentNode = this.treeTraversal(this.headNode);
-        // MCTSAgent.writeToBuffer(String.format("End of traversal, got node: %s%nDepth: %d",
-        //         currentNode.resultingAction.name(), currentNode.depth));
-        CharacterData currentCharacter = currentNode.state.getCharacter(currentNode.playerNumber);
-        // MCTSAgent.writeToBuffer(String.format("Selected player: %b", currentNode.playerNumber));
-        // MCTSAgent
-        //         .writeToBuffer(String.format("Values for conditionals.%nEmpty Kids: %b%nVisits: %d%nIs head node: %b%n",
-        //                 currentNode.children.isEmpty(), currentNode.visits, currentNode == this.headNode));
+        CharacterData currentCharacter = currentNode.rootFrameData.getCharacter(currentNode.playerNumber);
 
         // If already visited, add all its kids to the tree and the current node is the
         // first in the tree
         if (currentNode.children.isEmpty() && currentNode.visits >= 10
-                // && currentNode.depth < 2
+                && currentNode.depth < 2
                 || (currentNode == this.headNode && this.headNode.visits == 0)) {
-            // MCTSAgent.writeToBuffer("Entered expansion phase");
-            // MCTSAgent.writeToBuffer(String.format("Current state: %s", currentCharacter.getState().name()));
             Common common = currentNode.playerNumber
                     ? this.playerOneCommon
                     : this.playerTwoCommon;
 
-            FilteredActionList actionInformation = common.getFilteredActions(currentNode.state);
-            // MCTSAgent.writeToBuffer(String.format("Max possible actions in state: %d%nEnergy: %d",
-            //         actionInformation.maxIndex, currentCharacter.getEnergy()));
+            // TODO: If we wanted to make this more faithful, we could look into maybe simulating until this point... Just so we know what state we are in. But might not be all that useful
+            FilteredActionList actionInformation = common.getFilteredActions(currentNode.rootFrameData);
             for (int actionIndex = 0; actionIndex < actionInformation.maxIndex; actionIndex++) {
                 Action action = actionInformation.actionList[actionIndex];
-                // MCTSAgent.writeToBuffer(String.format("Current action: %s:%s", actionIndex, action.name()));
 
                 if (MCTSTree.ableAction(
                         currentNode.playerNumber,
@@ -108,11 +97,9 @@ public class MCTSTree {
                         this.playerOneMotionList,
                         this.playerTwoMotionList)) {
 
-                    // MCTSAgent.writeToBuffer(
-                    //         String.format("Can do action, adding to kids (%d)", currentNode.children.size()));
 
                     currentNode.children.add(new MCTSNode(
-                            currentNode.state,
+                            currentNode.rootFrameData,
                             currentNode,
                             currentNode.playerNumber,
                             action,
@@ -120,17 +107,12 @@ public class MCTSTree {
                 }
             }
 
-            // MCTSAgent.writeToBuffer(String.format("Completed expanding children: (%d)", currentNode.children.size()));
 
             if (!currentNode.children.isEmpty()) {
                 currentNode = currentNode.children.get(LaunchSetting.rng.nextInt(currentNode.children.size()));
-                // MCTSAgent.writeToBuffer(String.format("Since not empty, picking random child: %s, depth: %d",
-                //         currentNode.resultingAction.name(), currentNode.depth));
             }
         }
 
-        // MCTSAgent.writeToBuffer(String.format("Current Node being rolled out: %s, depth: %d",
-        //         currentNode.resultingAction.name(), currentNode.depth));
 
         double value = currentNode.rollout(
                 maxDepth,
@@ -140,48 +122,34 @@ public class MCTSTree {
                 this.playerOneMotionList,
                 this.playerTwoMotionList);
 
-        // MCTSAgent.writeToBuffer(String.format("Rollout value: %f", value));
 
         currentNode.backPropagation(value, this.headNode.playerNumber);
-        // MCTSAgent.writeToBuffer(String.format("Single iteration complete"));
     }
 
     private MCTSNode treeTraversal(MCTSNode node) {
-        // MCTSAgent.writeToBuffer("Root Traversal");
-        // MCTSAgent.writeToBuffer(String.format("Resulting Action: %s", node.resultingAction.name()));
         if (node.children.isEmpty()) {
-            // MCTSAgent.writeToBuffer("Is Leaf node, returning");
             // Is a leaf node
             return node;
         } else {
-            // MCTSAgent.writeToBuffer("Not Leaf node, going to have to search for child");
             // Select child node that maximizes UCB
             int bestNodeIndex = Integer.MIN_VALUE;
             double bestNodeUcb1 = -1;
             int counter = 0;
             for (MCTSNode childNode : node.children) {
-                // MCTSAgent.writeToBuffer(String.format("Currently on child %d", counter));
                 double childNodeUCB1 = childNode.ucb1();
-                // MCTSAgent.writeToBuffer(String.format("Child UCB1: %f", childNodeUCB1));
 
                 if (childNodeUCB1 == Double.POSITIVE_INFINITY) {
-                    // MCTSAgent.writeToBuffer("Positive infinity, meaning never visited\nSelected!");
                     return childNode;
                 }
 
                 if (bestNodeIndex == Integer.MIN_VALUE || childNodeUCB1 > bestNodeUcb1) {
-                    // MCTSAgent.writeToBuffer(
-                    //         String.format("Better than best! (%f > %f).%n New best", childNodeUCB1, bestNodeUcb1));
                     bestNodeIndex = counter;
                     bestNodeUcb1 = childNodeUCB1;
                 }
 
                 counter++;
             }
-            // MCTSAgent
-            //         .writeToBuffer(String.format("End of child loop%nBest child: %d: %f", bestNodeIndex, bestNodeUcb1));
 
-            // MCTSAgent.writeToBuffer("Going to do recursion on that child now");
             return treeTraversal(node.children.get(bestNodeIndex));
         }
     }

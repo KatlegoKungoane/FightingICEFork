@@ -5,11 +5,13 @@ import java.util.ArrayList;
 
 import fighting.Fighting;
 import fighting.Motion;
-import katai.mcts.basic.Common.FilteredActionList;
+import katai.mcts.Common;
+import katai.mcts.Common.FilteredActionList;
 import setting.GameSetting;
 import setting.LaunchSetting;
 import simulator.Simulator;
 import struct.FrameData;
+import struct.MotionData;
 import struct.CharacterData;
 
 import enumerate.Action;
@@ -22,21 +24,20 @@ public class MCTSNode extends Fighting {
     boolean justCreated;
     ArrayList<MCTSNode> children;
     int visits;
+    int depth;
     double totalReward;
     Action resultingAction;
     ArrayDeque<Action> activePlayerActions;
     ArrayDeque<Action> opponentPlayerActions;
-    CharacterData previousPlayerOneCharacterData;
-    CharacterData previousPlayerTwoCharacterData;
     Weights weights;
 
     public static class HitPointsWeights {
         public double agentWeight;
         public double opponentWeight;
 
-        public HitPointsWeights(double agentWeight, double opponentWeight) {
-            this.agentWeight = agentWeight;
-            this.opponentWeight = opponentWeight;
+        public HitPointsWeights(double playerOneWeight, double playerTwoWeight) {
+            this.agentWeight = playerOneWeight;
+            this.opponentWeight = playerTwoWeight;
         }
     }
 
@@ -61,8 +62,6 @@ public class MCTSNode extends Fighting {
             MCTSNode parent,
             boolean playerNumber,
             Action action,
-            CharacterData previousPlayerOneCharacterData,
-            CharacterData previousPlayerTwoCharacterData,
             Weights weights) {
         this.state = frameData;
         this.parent = parent;
@@ -71,14 +70,12 @@ public class MCTSNode extends Fighting {
         this.children = new ArrayList<>();
         this.visits = 0;
         this.totalReward = 0;
+        this.depth = this.parent != null ? this.parent.depth + 1 : 0;
 
         this.activePlayerActions = new ArrayDeque<>();
         this.opponentPlayerActions = new ArrayDeque<>();
 
         this.justCreated = parent != null;
-
-        this.previousPlayerOneCharacterData = previousPlayerOneCharacterData;
-        this.previousPlayerTwoCharacterData = previousPlayerTwoCharacterData;
 
         this.weights = weights;
     }
@@ -90,8 +87,29 @@ public class MCTSNode extends Fighting {
             return Double.POSITIVE_INFINITY;
         }
 
+        // MCTSAgent.writeToBuffer(
+        // String.format(
+        // "reward: %f%nvisits: %d%np-visits: %d",
+        // this.totalReward,
+        // this.visits,
+        // this.parent != null ? this.parent.visits : -1));
+
         return (this.totalReward / this.visits)
                 + c * Math.sqrt(Math.log(this.parent.visits) / this.visits);
+    }
+
+    private int getMaxFrames(
+            Motion selectedMotionData,
+            CharacterData selectedCharacterData) {
+        if (selectedMotionData.getCancelAbleFrame() != -1) {
+            return selectedMotionData.getCancelAbleFrame();
+        }
+
+        if (selectedCharacterData.getState() != State.DOWN && selectedCharacterData.getRemainingFrame() > 0) {
+            return selectedCharacterData.getRemainingFrame();
+        }
+
+        return selectedMotionData.getFrameNumber();
     }
 
     public double rollout(
@@ -112,6 +130,8 @@ public class MCTSNode extends Fighting {
 
         // We aren't going to simulate every node on creation, so this is the workaround
         if (this.justCreated) {
+            // MCTSAgent.writeToBuffer("This node was just created, going to find opponents
+            // move then perform ours");
             this.activePlayerActions.clear();
             this.opponentPlayerActions.clear();
 
@@ -120,28 +140,50 @@ public class MCTSNode extends Fighting {
                     ? playerTwoCommon
                     : playerOneCommon;
 
-            FilteredActionList opponentActionInformation = opponentCommon.getFilteredActions(this.state);
+            CharacterData opponentCharacter = this.state.getCharacter(!this.playerNumber);
+            CharacterData myCharacter = this.state.getCharacter(this.playerNumber);
 
-            int opponentActionIndex = this.state.getCharacter(!this.playerNumber).getState() == State.DOWN
+            FilteredActionList opponentActionInformation = opponentCommon.getFilteredActions(this.state);
+            // MCTSAgent.writeToBuffer(String.format("Opponent energy: %d%nOpponent max
+            // action index: %d",
+            // opponentCharacter.getEnergy(), opponentActionInformation.maxIndex));
+            // In theory, opponent can cancel action, but we arent going to be that
+            // technical to be honest
+            int opponentActionIndex = opponentCharacter.getState() == State.DOWN
                     || opponentActionInformation.maxIndex <= 0
+                    || opponentCharacter.getRemainingFrame() > 0
                             ? 0
                             : -1;
+
+            // MCTSAgent.writeToBuffer(String.format("Opp state: %s%nOpp init action index:
+            // %d",
+            // this.state.getCharacter(!this.playerNumber).getState().name(),
+            // opponentActionIndex));
 
             // TODO: Formalize me, this is sloppy
             int missCount = 0;
             while (opponentActionIndex == -1) {
                 opponentActionIndex = LaunchSetting.rng.nextInt(opponentActionInformation.maxIndex);
+                // MCTSAgent.writeToBuffer(String.format("Picked random action: %s",
+                // opponentActionInformation.actionList[opponentActionIndex].name()));
                 if (!MCTSTree.ableAction(
                         !this.playerNumber,
                         this.state.getCharacter(!this.playerNumber),
                         opponentActionInformation.actionList[opponentActionIndex],
                         playerOneMotionList,
                         playerTwoMotionList)) {
+
+                    // MCTSAgent.writeToBuffer(String.format("not possible"));
                     opponentActionIndex = -1;
                 }
                 missCount++;
 
                 if (missCount >= 1000) {
+                    // MCTSAgent.writeToBuffer(String.format("Opp failed to find action, going to
+                    // default to neutral"));
+                    // MCTSAgent.writeToBuffer(
+                    // String.format("Remaining frames!: %d",
+                    // opponentCharacter.getRemainingFrame()));
                     System.out.println("Find Opp move MISS");
                     System.out.println(this.state.getCharacter(!this.playerNumber).getState().name());
 
@@ -152,12 +194,16 @@ public class MCTSNode extends Fighting {
             }
 
             Action opponentAction = opponentActionInformation.actionList[opponentActionIndex];
+            // MCTSAgent.writeToBuffer(String.format("Selected opp action: %s",
+            // opponentAction.name()));
 
             this.activePlayerActions.add(this.resultingAction);
             this.opponentPlayerActions.add(opponentAction);
 
-            int maxFrameCount = Math.max(selectedMotionList[this.resultingAction.ordinal()].getFrameNumber(),
-                    opponentMotionList[opponentActionIndex].getFrameNumber());
+            int maxFrameCount = this.getMaxFrames(selectedMotionList[this.resultingAction.ordinal()], myCharacter);
+
+            // MCTSAgent.writeToBuffer(String.format("Max frame duration of actions: %d",
+            // maxFrameCount));
 
             this.state = simulator.simulate(
                     this.state,
@@ -166,12 +212,21 @@ public class MCTSNode extends Fighting {
                     this.opponentPlayerActions,
                     maxFrameCount);
 
+            // MCTSAgent.writeToBuffer(String.format("Just simulated, mine and opp, so no
+            // need to swap player numbers"));
+
             this.justCreated = false;
+        } else {
+            // MCTSAgent.writeToBuffer(String.format("Not just created, going to perform
+            // calcs"));
         }
 
         int currentDepth = 0;
         FrameData currentState = this.state;
 
+        // MCTSAgent.writeToBuffer(
+        // String.format("Currently not implementing deep rollout, just doing surface
+        // level move then moving on"));
         while (!MCTSNode.isTerminal(currentState) && currentDepth < maxDepth) {
             Common myCommon;
             Common opponentCommon;
@@ -184,14 +239,19 @@ public class MCTSNode extends Fighting {
                 opponentCommon = playerOneCommon;
             }
 
-            FilteredActionList myActionInformation = myCommon.getFilteredActions(this.state);
-            FilteredActionList opponentActionInformation = opponentCommon.getFilteredActions(this.state);
+            FilteredActionList myActionInformation = myCommon.getFilteredActions(currentState);
+            FilteredActionList opponentActionInformation = opponentCommon.getFilteredActions(currentState);
 
-            int myActionIndex = this.state.getCharacter(this.playerNumber).getState() == State.DOWN
+            CharacterData myCharacterData = currentState.getCharacter(this.playerNumber);
+            CharacterData opponentCharacterData = currentState.getCharacter(!this.playerNumber);
+
+            int myActionIndex = myCharacterData.getState() == State.DOWN
                     || myActionInformation.maxIndex <= 0
+                    || myCharacterData.getRemainingFrame() > 0
                             ? 0
                             : -1;
-            int opponentActionIndex = this.state.getCharacter(!this.playerNumber).getState() == State.DOWN
+            int opponentActionIndex = opponentCharacterData.getState() == State.DOWN
+                    || opponentCharacterData.getRemainingFrame() > 0
                     || opponentActionInformation.maxIndex <= 0
                             ? 0
                             : -1;
@@ -204,7 +264,7 @@ public class MCTSNode extends Fighting {
                     myActionIndex = LaunchSetting.rng.nextInt(myActionInformation.maxIndex);
                     if (!MCTSTree.ableAction(
                             this.playerNumber,
-                            this.state.getCharacter(this.playerNumber),
+                            currentState.getCharacter(this.playerNumber),
                             myActionInformation.actionList[myActionIndex],
                             playerOneMotionList,
                             playerTwoMotionList)) {
@@ -216,7 +276,7 @@ public class MCTSNode extends Fighting {
                     opponentActionIndex = LaunchSetting.rng.nextInt(opponentActionInformation.maxIndex);
                     if (!MCTSTree.ableAction(
                             !this.playerNumber,
-                            this.state.getCharacter(!this.playerNumber),
+                            currentState.getCharacter(!this.playerNumber),
                             opponentActionInformation.actionList[opponentActionIndex],
                             playerOneMotionList,
                             playerTwoMotionList)) {
@@ -227,8 +287,8 @@ public class MCTSNode extends Fighting {
 
                 if (missCount >= 1000) {
                     System.out.println("MISS");
-                    System.out.println(this.state.getCharacter(this.playerNumber).getState().name());
-                    System.out.println(this.state.getCharacter(!this.playerNumber).getState().name());
+                    System.out.println(currentState.getCharacter(this.playerNumber).getState().name());
+                    System.out.println(currentState.getCharacter(!this.playerNumber).getState().name());
                     if (myActionIndex == -1) {
                         myActionIndex = 0;
                     }
@@ -244,8 +304,7 @@ public class MCTSNode extends Fighting {
 
             Action randomAction = myActionInformation.actionList[myActionIndex];
             Action opponentAction = opponentActionInformation.actionList[opponentActionIndex];
-            int maxFrameDuration = selectedMotionList[myActionIndex].getFrameNumber()
-                    + opponentMotionList[opponentActionIndex].getFrameNumber();
+            int maxFrameDuration = this.getMaxFrames(selectedMotionList[randomAction.ordinal()], myCharacterData);
 
             activePlayerActions.add(randomAction);
             opponentPlayerActions.add(opponentAction);
@@ -264,21 +323,26 @@ public class MCTSNode extends Fighting {
     }
 
     private double getReward(FrameData currentState) {
+        // MCTSAgent.writeToBuffer(String.format("Getting reward for state"));
         // r = win + hp_reward + distance_reward + time_reward
         double maxReward = this.weights.distance
                 + Math.max(this.weights.hitPoints.agentWeight, this.weights.hitPoints.opponentWeight);
+
+        // MCTSAgent.writeToBuffer(String.format("Max Reward: %f", maxReward));
 
         CharacterData playerOneCharacterData = currentState.getCharacter(true);
         CharacterData playerTwoCharacterData = currentState.getCharacter(false);
 
         // Maximize reward if killing move
-        if (playerOneCharacterData.getHp() < 0) {
+        if (playerOneCharacterData.getHp() <= 0) {
+            // MCTSAgent.writeToBuffer(String.format("Player one lost"));
             return this.playerNumber
                     ? maxReward * -1
                     : maxReward;
         }
 
-        if (playerTwoCharacterData.getHp() < 0) {
+        if (playerTwoCharacterData.getHp() <= 0) {
+            // MCTSAgent.writeToBuffer(String.format("Player one lost"));
             return this.playerNumber
                     ? maxReward
                     : maxReward * -1;
@@ -288,12 +352,18 @@ public class MCTSNode extends Fighting {
                 + calculateDistanceReward(playerOneCharacterData, playerTwoCharacterData);
     }
 
+    // TODO: Broken, for some reason, distance is 0
     private double calculateDistanceReward(
             CharacterData playerOneCharacterData,
             CharacterData playerTwoCharacterData) {
 
+        // MCTSAgent.writeToBuffer(String.format("Character distance: %f",
+        // Math.abs((double) (playerOneCharacterData.getCenterX() -
+        // playerTwoCharacterData.getCenterX()))
+        // / GameSetting.STAGE_WIDTH));
+
         return this.weights.distance
-                * (Math.abs(playerOneCharacterData.getCenterX() - playerTwoCharacterData.getCenterX())
+                * (Math.abs((double) (playerOneCharacterData.getCenterX() - playerTwoCharacterData.getCenterX()))
                         / GameSetting.STAGE_WIDTH);
     }
 
@@ -301,36 +371,52 @@ public class MCTSNode extends Fighting {
             CharacterData playerOneCharacterData,
             CharacterData playerTwoCharacterData) {
 
+        CharacterData previousPlayerOneCharacterData = this.parent.state.getCharacter(true);
+        CharacterData previousPlayerTwoCharacterData = this.parent.state.getCharacter(false);
+
         // Normally never reaches max range, we can think about a better solution for
         // this later
-        double playerOneDiff = ((double) playerOneCharacterData.getHp() - this.previousPlayerOneCharacterData.getHp())
+        double playerOneDiff = ((double) playerOneCharacterData.getHp() - previousPlayerOneCharacterData.getHp())
                 / LaunchSetting.maxHp[0];
-        double playerTwoDiff = ((double) playerTwoCharacterData.getHp() - this.previousPlayerTwoCharacterData.getHp())
+        double playerTwoDiff = ((double) playerTwoCharacterData.getHp() - previousPlayerTwoCharacterData.getHp())
                 / LaunchSetting.maxHp[1];
+
+        // MCTSAgent.writeToBuffer(String.format("HP DIFF:%nP1: %f%nP2: %f",
+        // playerOneDiff, playerTwoDiff));
 
         if (this.playerNumber) {
             return this.weights.hitPoints.agentWeight * playerOneDiff
                     - this.weights.hitPoints.opponentWeight * playerTwoDiff;
         }
 
-        return this.weights.hitPoints.agentWeight * playerTwoDiff
-                - this.weights.hitPoints.opponentWeight * playerOneDiff;
+        return this.weights.hitPoints.opponentWeight * playerTwoDiff
+                - this.weights.hitPoints.agentWeight * playerOneDiff;
     }
 
     public void backPropagation(double value, boolean headNodePlayerNumber) {
+        // MCTSAgent.writeToBuffer(
+        // String.format("Current node backprop: %d (%s)", this.depth,
+        // this.resultingAction.name()));
         MCTSNode currentNode = this;
 
         while (currentNode != null) {
             currentNode.visits += 1;
+            // MCTSAgent.writeToBuffer(String.format("Current node: %d",
+            // currentNode.depth));
+            // MCTSAgent.writeToBuffer(String.format("up visits to: %d",
+            // currentNode.visits));
 
             // We could simplify logic, but imma do it this way for readability
             if (currentNode.playerNumber == headNodePlayerNumber) {
+                // MCTSAgent.writeToBuffer(String.format("Positive reward"));
                 currentNode.totalReward += value;
             } else {
+                // MCTSAgent.writeToBuffer(String.format("Negatve reward"));
                 currentNode.totalReward -= value;
             }
 
             currentNode = currentNode.parent;
+            // MCTSAgent.writeToBuffer(String.format("Moving to parent"));
         }
     }
 

@@ -1,4 +1,4 @@
-package katai.mcts.basic;
+package katai.mcts;
 
 import java.util.ArrayList;
 import java.util.Arrays;
