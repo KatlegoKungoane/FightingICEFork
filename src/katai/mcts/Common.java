@@ -105,9 +105,14 @@ public class Common {
             index = -(index + 1) - 1;
         } else {
             // If exact match found, find the last occurrence of that cost
-            while (index + 1 < actionList.length && actionList[index + 1].cost <= currentEnergy) {
+            while (index + 1 < actionList.length && actionList[index + 1].cost <= currentEnergy)  {
                 index++;
             }
+        }
+
+        // Failsafe to always give neutral action even if they cant do anything else
+        if (index == -1) {
+            return new FilteredActionList(new Action[] { Action.NEUTRAL }, 1);
         }
 
         return new FilteredActionList(sortedActionList, index + 1);
