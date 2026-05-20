@@ -1,4 +1,4 @@
-package katai.mcts.minimax_mcts;
+package katai.mcts.mx_mcts_acc;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -18,6 +18,18 @@ import enumerate.Action;
 import enumerate.State;
 
 public class MCTSNode extends Fighting {
+    public static class AgentConfig {
+        int maxDepth = 15;
+        double hitPointWeightP1 = 1;
+        double hitPointWeightP2 = 1;
+        double ucbConstant = 3;
+        int rolloutDuration = 90;
+        int childCreationSimulationLimit = 60;
+        int maxTreeDepth = 6;
+        int minVisitCountBeforeRollout = 20;
+        boolean usedReversedActionList = true;
+    }
+
     FrameData rootFrameData;
     MCTSNode parent;
     boolean playerNumber;
@@ -28,9 +40,14 @@ public class MCTSNode extends Fighting {
     int depth;
     double totalReward;
     Action[] actionSequence;
-    ArrayDeque<Action> p1Actions;
-    ArrayDeque<Action> p2Actions;
+    public ArrayDeque<Action> p1Actions;
+    public ArrayDeque<Action> p2Actions;
     Weights weights;
+    State p1State;
+    State p2State;
+    int p1Energy;
+    int p2Energy;
+    AgentConfig agentConfig;
 
     public static class HitPointsWeights {
         public double playerOneWeights;
@@ -63,10 +80,12 @@ public class MCTSNode extends Fighting {
             MCTSNode parent,
             boolean rootPlayerNumber,
             Action action,
-            Weights weights) {
+            Weights weights,
+            AgentConfig agentConfig) {
         this.rootFrameData = frameData;
         this.parent = parent;
         this.rootPlayerNumber = rootPlayerNumber;
+        this.agentConfig = agentConfig;
         this.children = new ArrayList<>();
         this.visits = 0;
         this.totalReward = 0;
@@ -88,11 +107,17 @@ public class MCTSNode extends Fighting {
 
         this.weights = weights;
         this.deadKids = false;
+
+        this.p1State = null;
+        this.p2State = null;
+
+        this.p1Energy = -1;
+        this.p2Energy = -1;
     }
 
     public double ucb1() {
         // double c = Math.sqrt(2) / 8 .0;
-        double c = 3;
+        double c = this.agentConfig.ucbConstant;
 
         if (this.visits == 0) {
             return Double.POSITIVE_INFINITY;
@@ -106,17 +131,7 @@ public class MCTSNode extends Fighting {
                 + c * Math.sqrt(Math.log(this.parent.visits) / this.visits);
     }
 
-    public double rollout(
-            int maxDepth,
-            Simulator simulator,
-            Common playerOneCommon,
-            Common playerTwoCommon,
-            Motion[] playerOneMotionList,
-            Motion[] playerTwoMotionList) {
-
-        FilteredActionList leadingActionList;
-        FilteredActionList followerActionList;
-
+    public void getActionSequence(Common p1Common, Common p2Common, int maxDepth) {
         this.p1Actions.clear();
         this.p2Actions.clear();
 
@@ -129,18 +144,21 @@ public class MCTSNode extends Fighting {
         ArrayDeque<Action> leadingActions;
         ArrayDeque<Action> followerActions;
 
+        FilteredActionList leadingActionList;
+        FilteredActionList followerActionList;
+
         if (this.rootPlayerNumber) {
             leadingActions = this.p1Actions;
             followerActions = this.p2Actions;
 
-            leadingActionList = playerOneCommon.getFilteredActions(this.rootFrameData);
-            followerActionList = playerTwoCommon.getFilteredActions(this.rootFrameData);
+            leadingActionList = p1Common.getFilteredActions(this.rootFrameData);
+            followerActionList = p2Common.getFilteredActions(this.rootFrameData);
         } else {
             leadingActions = this.p2Actions;
             followerActions = this.p1Actions;
 
-            leadingActionList = playerTwoCommon.getFilteredActions(this.rootFrameData);
-            followerActionList = playerOneCommon.getFilteredActions(this.rootFrameData);
+            leadingActionList = p2Common.getFilteredActions(this.rootFrameData);
+            followerActionList = p1Common.getFilteredActions(this.rootFrameData);
         }
 
         for (int actionIndex = 0; actionIndex < this.actionSequence.length + maxDepth; actionIndex++) {
@@ -158,13 +176,24 @@ public class MCTSNode extends Fighting {
                                         .nextInt(followerActionList.maxIndex)]);
             }
         }
+    }
+
+    public double rollout(
+            int maxDepth,
+            Simulator simulator,
+            Common playerOneCommon,
+            Common playerTwoCommon,
+            Motion[] playerOneMotionList,
+            Motion[] playerTwoMotionList) {
+
+        this.getActionSequence(playerOneCommon, playerTwoCommon, maxDepth);
 
         FrameData currentState = simulator.simulate(
                 this.rootFrameData,
                 this.rootPlayerNumber,
                 this.p1Actions,
                 this.p2Actions,
-                90);
+                this.agentConfig.rolloutDuration);
 
         return getReward(currentState);
     }
@@ -177,7 +206,8 @@ public class MCTSNode extends Fighting {
         // + Math.max(this.weights.hitPoints.playerOneWeights,
         // this.weights.hitPoints.playerTwoWeights);
         // Added 50 for down punishment
-        double maxReward = 450;
+        // Did 2x just to see if it will try to kill when it can
+        double maxReward = 450 * 2;
 
         CharacterData playerOneCharacterData = currentState.getCharacter(true);
         CharacterData playerTwoCharacterData = currentState.getCharacter(false);

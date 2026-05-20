@@ -1,4 +1,4 @@
-package katai.mcts.minimax_mcts;
+package katai.mcts.mx_mcts_acc;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -8,10 +8,12 @@ import enumerate.State;
 import fighting.Motion;
 import katai.mcts.Common;
 import katai.mcts.Common.FilteredActionList;
-import katai.mcts.minimax_mcts.MCTSNode.Weights;
+import katai.mcts.Common.ReversedFilteredActionList;
+import katai.mcts.mx_mcts_acc.MCTSNode.Weights;
 import setting.LaunchSetting;
 import simulator.Simulator;
 import struct.CharacterData;
+import struct.FrameData;
 
 public class MCTSTree {
     int maxDepth;
@@ -78,17 +80,52 @@ public class MCTSTree {
                 ? this.playerOneCommon
                 : this.playerTwoCommon;
 
+        State selectedState = null;
+        int selectedEnergy = -1;
+        if (currentNode.p1State != null) {
+            if (currentNode.playerNumber) {
+                selectedState = currentNode.p1State;
+                selectedEnergy = currentNode.p1Energy;
+            } else {
+                selectedState = currentNode.p2State;
+                selectedEnergy = currentNode.p2Energy;
+            }
+        }
+
         // If already visited, add all its kids to the tree and the current node is the
         // first in the tree
-        if (currentNode.children.isEmpty() && currentNode.visits >= 20
-                && currentNode.depth < 6 && !currentNode.deadKids
+        if (currentNode.children.isEmpty() && currentNode.visits >= currentNode.agentConfig.minVisitCountBeforeRollout
+                && currentNode.depth < currentNode.agentConfig.maxTreeDepth && !currentNode.deadKids
                 || (currentNode == this.headNode && this.headNode.visits == 0)) {
 
+            // TODO: This is addressed with my new method to simulate then judge from that
+            // state
             // TODO: This does mean that you cant really look that far into the future.
             // Since you dont know what state you are probably in.
-            FilteredActionList actionInformation = selectedCommon.getFilteredActions(currentNode.rootFrameData);
-            for (int actionIndex = 0; actionIndex < actionInformation.maxIndex; actionIndex++) {
-                Action action = actionInformation.actionList[actionIndex];
+
+            int minIndex;
+            int maxIndex;
+            Action[] actionList;
+            if (currentNode.agentConfig.usedReversedActionList) {
+                ReversedFilteredActionList actionInformation = selectedState == null
+                        ? selectedCommon.getFilteredActionsReversed(currentNode.rootFrameData)
+                        : selectedCommon.getFilteredActionsReversed(selectedState, selectedEnergy);
+
+                minIndex = actionInformation.minIndex;
+                maxIndex = actionInformation.actionListReversed.length;
+                actionList = actionInformation.actionListReversed;
+            } else {
+                FilteredActionList actionInformation = selectedState == null
+                        ? selectedCommon.getFilteredActions(currentNode.rootFrameData)
+                        : selectedCommon.getFilteredActions(selectedState, selectedEnergy);
+
+                minIndex = 0;
+                maxIndex = actionInformation.maxIndex;
+                actionList = actionInformation.actionList;
+            }
+
+            for (int actionIndex = minIndex; actionIndex < maxIndex; actionIndex++) {
+                Action action = actionList[actionIndex];
 
                 if (MCTSTree.ableAction(
                         currentNode.playerNumber,
@@ -97,18 +134,38 @@ public class MCTSTree {
                         this.playerOneMotionList,
                         this.playerTwoMotionList)) {
 
-                    currentNode.children.add(
-                            new MCTSNode(
-                                    currentNode.rootFrameData,
-                                    currentNode,
-                                    currentNode.rootPlayerNumber,
-                                    action,
-                                    this.weightsConfig));
+                    MCTSNode childNode = new MCTSNode(
+                            currentNode.rootFrameData,
+                            currentNode,
+                            currentNode.rootPlayerNumber,
+                            action,
+                            this.weightsConfig,
+                            currentNode.agentConfig);
+
+                    childNode.getActionSequence(this.playerOneCommon, this.playerTwoCommon, 0);
+
+                    // We are going to simulate this state such the current node has a view of its
+                    // current state, such that we can filter actions better
+                    FrameData childFrame = this.simulator.simulate(
+                            currentNode.rootFrameData,
+                            childNode.rootPlayerNumber,
+                            childNode.p1Actions,
+                            childNode.p2Actions,
+                            currentNode.agentConfig.childCreationSimulationLimit);
+
+                    childNode.p1State = childFrame.getCharacter(true).getState();
+                    childNode.p2State = childFrame.getCharacter(false).getState();
+
+                    childNode.p1Energy = childFrame.getCharacter(false).getEnergy();
+                    childNode.p2Energy = childFrame.getCharacter(false).getEnergy();
+
+                    currentNode.children.add(childNode);
                 }
             }
 
             if (!currentNode.children.isEmpty()) {
-                // TODO: Could look into sampling from the back. Such that you do more energy intensive moves first.
+                // TODO: Could look into sampling from the back. Such that you do more energy
+                // intensive moves first.
                 currentNode = currentNode.children.get(LaunchSetting.rng.nextInt(currentNode.children.size()));
             }
             // Remove wasteful effort on nodes that produce no kids, skip it next time.
