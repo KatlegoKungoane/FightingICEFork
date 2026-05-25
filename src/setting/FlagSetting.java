@@ -64,10 +64,10 @@ public class FlagSetting {
      * ラウンド終了時にスローモーションを発生させるかどうかのフラグ
      */
     public static boolean slowmotion = false;
-    
+
     public static boolean enablePyftgMode = false;
     public static boolean isPyftgReady = false;
-    
+
     public static boolean visualVisibleOnRender = true;
     public static boolean enableBuiltinSound = false;
     public static boolean enableReplaySound = false;
@@ -75,5 +75,7 @@ public class FlagSetting {
     public static boolean saveSoundOnReplay = false;
 
     public static boolean useCustomGameTime = false;
-    
+
+    public static boolean saveReplay = false;
+
 }

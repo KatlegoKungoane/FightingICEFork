@@ -239,6 +239,7 @@ public class MCTSNode extends Fighting {
                 + downPunishment(playerOneCharacterData, playerTwoCharacterData);
     }
 
+    // TODO: Maybe look into adding a flag for if we should punish down or not.
     private double downPunishment(
             CharacterData playerOneCharacterData,
             CharacterData playerTwoCharacterData) {

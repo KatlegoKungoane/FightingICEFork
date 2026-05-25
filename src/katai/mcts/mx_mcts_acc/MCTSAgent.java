@@ -81,10 +81,9 @@ public class MCTSAgent implements AIInterface {
         System.out.println(jsonPayload);
         if (jsonPayload != null && !jsonPayload.isEmpty()) {
             try {
-                String parsedJSON = new Gson().fromJson(jsonPayload, String.class);
-                this.agentConfig = new Gson().fromJson(parsedJSON, AgentConfig.class);
+                this.agentConfig = new Gson().fromJson(jsonPayload, AgentConfig.class);
             } catch (Exception e) {
-                System.out.println("Error parsing AGENT_CONFIG" + playerNumberStr);
+                System.out.println("Error parsing AGENT_CONFIG_" + playerNumberStr);
                 e.printStackTrace();
                 this.agentConfig = new AgentConfig();
             }
@@ -123,7 +122,7 @@ public class MCTSAgent implements AIInterface {
         // this.frameData.getCharacter(this.playerNumber).isControl()) {
         if (!this.commandCenter.getSkillFlag()) {
             // MCTSAgent.writeToBuffer("Can do action, running MCTS");
-            this.commandCenter.skillCancel();
+            // this.commandCenter.skillCancel();
             Action bestAction = this.runMCTS(this.agentConfig.maxDepth);
             this.commandCenter.commandCall(bestAction.name());
         }

@@ -324,7 +324,7 @@ public class Play extends GameScene {
 		}
 
 		// リプレイログ吐き出し
-		if (!FlagSetting.trainingModeFlag) {
+		if (!FlagSetting.trainingModeFlag && FlagSetting.saveReplay) {
 			LogWriter.getInstance().outputLog(this.dos, this.keyData, this.fighting.getCharacters());
 		}
 
@@ -433,11 +433,13 @@ public class Play extends GameScene {
 	 * リプレイファイルを作成し, 使用キャラクターを表すインデックスなどのヘッダ情報を記述する.
 	 */
 	private void openReplayFile() {
-		String logTimeInfo = FlagSetting.useCustomGameTime ? LaunchSetting.gameTime : this.timeInfo;
-		this.replayName = LogWriter.getInstance().createOutputFileName("./log/replay/", logTimeInfo);
-		this.dos = ResourceLoader.getInstance().openDataOutputStream(this.replayName + ".dat");
+        if (FlagSetting.saveReplay) {
+            String logTimeInfo = FlagSetting.useCustomGameTime ? LaunchSetting.gameTime : this.timeInfo;
+            this.replayName = LogWriter.getInstance().createOutputFileName("./log/replay/", logTimeInfo);
+            this.dos = ResourceLoader.getInstance().openDataOutputStream(this.replayName + ".dat");
 
-		LogWriter.getInstance().writeHeader(this.dos);
+            LogWriter.getInstance().writeHeader(this.dos);
+        }
 	}
 
 	@Override
@@ -456,46 +458,48 @@ public class Play extends GameScene {
 			DebugActionData.getInstance().closeAllWriters();
 		}
 
-		try {
-			if (this.dos != null) {
-				this.dos.close();
+        if (FlagSetting.saveReplay) {
+            try {
+                if (this.dos != null) {
+                    this.dos.close();
 
-				// This is where I am going to add that logic to save the replay with a motion
-				String replayFileName = Path.of(this.replayName).getFileName().toString();
-				Gson gson = new GsonBuilder().setPrettyPrinting().create();
-				JsonObject replayMappingsJSON;
+                    // This is where I am going to add that logic to save the replay with a motion
+                    String replayFileName = Path.of(this.replayName).getFileName().toString();
+                    Gson gson = new GsonBuilder().setPrettyPrinting().create();
+                    JsonObject replayMappingsJSON;
 
-				String mappingFileName = Path.of("log", "replay", "mapper.json").toString();
-				try (FileReader reader = new FileReader(mappingFileName)) {
-					replayMappingsJSON = JsonParser.parseReader(reader).getAsJsonObject();
-				} catch (Exception e) {
-					replayMappingsJSON = new JsonObject();
-				}
+                    String mappingFileName = Path.of("log", "replay", "mapper.json").toString();
+                    try (FileReader reader = new FileReader(mappingFileName)) {
+                        replayMappingsJSON = JsonParser.parseReader(reader).getAsJsonObject();
+                    } catch (Exception e) {
+                        replayMappingsJSON = new JsonObject();
+                    }
 
-				if (replayMappingsJSON.has(replayFileName)) {
-					System.out.println("Replay mapping already had entry: " + replayFileName + " -> " + replayMappingsJSON.get(replayFileName));
-					System.out.println("Overwriting");
-				}
+                    if (replayMappingsJSON.has(replayFileName)) {
+                        System.out.println("Replay mapping already had entry: " + replayFileName + " -> " + replayMappingsJSON.get(replayFileName));
+                        System.out.println("Overwriting");
+                    }
 
-				JsonObject replayPaths = new JsonObject();
-				for (String characterName : LaunchSetting.characterNames) {
-					String customMotionPath = LaunchSetting.customMotion.get(characterName);
-					if (!customMotionPath.isEmpty()) {
-						replayPaths.addProperty(characterName, customMotionPath);
-					}
-				}
+                    JsonObject replayPaths = new JsonObject();
+                    for (String characterName : LaunchSetting.characterNames) {
+                        String customMotionPath = LaunchSetting.customMotion.get(characterName);
+                        if (!customMotionPath.isEmpty()) {
+                            replayPaths.addProperty(characterName, customMotionPath);
+                        }
+                    }
 
-				replayMappingsJSON.add(replayFileName, replayPaths);
+                    replayMappingsJSON.add(replayFileName, replayPaths);
 
-				try (FileWriter writer = new FileWriter(mappingFileName)) {
-					gson.toJson(replayMappingsJSON, writer);
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-			}
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
+                    try (FileWriter writer = new FileWriter(mappingFileName)) {
+                        gson.toJson(replayMappingsJSON, writer);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
 
 		if (FlagSetting.jsonFlag) {
 			LogWriter.getInstance().finalizeJson();
@@ -523,7 +527,7 @@ public class Play extends GameScene {
 
 			gson.toJson(this.frameBuffer, writer);
 
-			System.out.println("Research data saved to: " + targetPath.toString());
+			// System.out.println("Research data saved to: " + targetPath.toString());
 		} catch (IOException e) {
 			System.err.println("CRITICAL: Failed to save research data! " + e.getMessage());
 			e.printStackTrace();
