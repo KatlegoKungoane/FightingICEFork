@@ -50,7 +50,7 @@ public class Result extends GameScene {
 		this.isGameEndFlag = false;
 		this.isTransitionFlag = false;
 		this.nextGameScene = null;
-		//////////////////////////////////////
+		////////////////////////////////////
 
 		this.roundResults = new ArrayList<RoundResult>();
 		this.timeInfo = "0";
@@ -61,9 +61,9 @@ public class Result extends GameScene {
 	 * 各ラウンドの結果を格納したリスト及び現在の時間情報をセットし, リプレイシーンを初期化するクラスコンストラクタ．
 	 *
 	 * @param roundResults
-	 *            各ラウンドの結果を格納したリスト
+	 *                     各ラウンドの結果を格納したリスト
 	 * @param timeInfo
-	 *            現在の時間情報
+	 *                     現在の時間情報
 	 */
 	public Result(ArrayList<RoundResult> roundResults, String timeInfo) {
 		super();
@@ -77,7 +77,7 @@ public class Result extends GameScene {
 	@Override
 	public void initialize() {
 		InputManager.getInstance().setSceneName(GameSceneName.RESULT);
-		String logTimeInfo = FlagSetting.useCustomGameTime ? LaunchSetting.gameTime : this.timeInfo; 
+		String logTimeInfo = FlagSetting.useCustomGameTime ? LaunchSetting.gameTime : this.timeInfo;
 
 		// pointファイルの書き出し
 		LogWriter.getInstance().outputResult(this.roundResults, LogWriter.CSV, logTimeInfo);
@@ -97,16 +97,16 @@ public class Result extends GameScene {
 
 			// 勝ちや引き分けに応じてWin !やDrawをスコアの横に印字
 			switch (getWinPlayer(i)) {
-			case 1:
-				GraphicManager.getInstance().drawString("Win !", positionX[0] - 100, 50 + i * 100);
-				break;
-			case -1:
-				GraphicManager.getInstance().drawString("Win !", positionX[1] + 80, 50 + i * 100);
-				break;
-			default:
-				GraphicManager.getInstance().drawString("Draw", positionX[0] - 100, 50 + i * 100);
-				GraphicManager.getInstance().drawString("Draw", positionX[1] + 80, 50 + i * 100);
-				break;
+				case 1:
+					GraphicManager.getInstance().drawString("Win !", positionX[0] - 100, 50 + i * 100);
+					break;
+				case -1:
+					GraphicManager.getInstance().drawString("Win !", positionX[1] + 80, 50 + i * 100);
+					break;
+				default:
+					GraphicManager.getInstance().drawString("Draw", positionX[0] - 100, 50 + i * 100);
+					GraphicManager.getInstance().drawString("Draw", positionX[1] + 80, 50 + i * 100);
+					break;
 			}
 		}
 
@@ -163,9 +163,10 @@ public class Result extends GameScene {
 						System.err.println("Failed to create directory: " + e.getMessage());
 					}
 
-					String logTimeInfo = FlagSetting.useCustomGameTime ? LaunchSetting.gameTime : this.timeInfo; 
+					String logTimeInfo = FlagSetting.useCustomGameTime ? LaunchSetting.gameTime : this.timeInfo;
 					Path targetPath = Paths
-							.get(LogWriter.getInstance().createOutputFileName("./log/motions/", logTimeInfo) + ".txt");
+							.get(LogWriter.getInstance().createOutputFileName("./log/motions/", logTimeInfo)
+									+ ".txt");
 
 					for (String characterRaw : LaunchSetting.characterNames) {
 						String character = characterRaw.toUpperCase();
@@ -180,7 +181,8 @@ public class Result extends GameScene {
 							if (Files.exists(sourcePath)) {
 								byte[] data = Files.readAllBytes(sourcePath);
 
-								Files.write(targetPath, character.getBytes(), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+								Files.write(targetPath, character.getBytes(), StandardOpenOption.CREATE,
+										StandardOpenOption.APPEND);
 								Files.write(targetPath, "\n".getBytes(), StandardOpenOption.APPEND);
 								Files.write(targetPath, data, StandardOpenOption.APPEND);
 								Files.write(targetPath, "\n".getBytes(), StandardOpenOption.APPEND);
@@ -189,6 +191,7 @@ public class Result extends GameScene {
 							System.err.println("Error merging " + characterRaw + ": " + e.getMessage());
 						}
 					}
+
 				}
 				// まだ繰り返し回数が残っている場合
 				if (FlagSetting.automationFlag && LaunchSetting.repeatedCount + 1 < LaunchSetting.repeatNumber) {

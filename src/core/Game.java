@@ -198,6 +198,8 @@ public class Game extends GameManager {
                     LaunchSetting.gameTime = options[++i];
                 case "--save-replay":
                     FlagSetting.saveReplay = false;
+                case "--save-motion":
+                    FlagSetting.saveMotions = true;
                 default:
                     Logger.getAnonymousLogger().log(Level.WARNING, "Arguments error: unknown format is exist. -> " + options[i] + " ?");
             }

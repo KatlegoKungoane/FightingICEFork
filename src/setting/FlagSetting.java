@@ -77,5 +77,6 @@ public class FlagSetting {
     public static boolean useCustomGameTime = false;
 
     public static boolean saveReplay = false;
+    public static boolean saveMotions = false;
 
 }

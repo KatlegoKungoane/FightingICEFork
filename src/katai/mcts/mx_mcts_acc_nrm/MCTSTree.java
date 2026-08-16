@@ -1,4 +1,4 @@
-package katai.mcts.mx_mcts_acc;
+package katai.mcts.mx_mcts_acc_nrm;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -9,7 +9,7 @@ import fighting.Motion;
 import katai.mcts.Common;
 import katai.mcts.Common.FilteredActionList;
 import katai.mcts.Common.ReversedFilteredActionList;
-import katai.mcts.mx_mcts_acc.MCTSNode.Weights;
+import katai.mcts.mx_mcts_acc_nrm.MCTSNode.Weights;
 import setting.LaunchSetting;
 import simulator.Simulator;
 import struct.CharacterData;
